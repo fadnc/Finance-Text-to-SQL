@@ -1,0 +1,27 @@
+# Model Configuration
+#model_name: microsoft/Phi-3-mini-4k-instruct
+model_name: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+
+# Paths
+dataset_path: data/processed/finance_sql.json
+output_dir: models/phi3-sql
+db_path: data/processed/finance.db
+
+# Training Hyperparameters
+batch_size: 2
+epochs: 3
+learning_rate: 2e-4
+test_split: 0.1
+seed: 42
+
+# Schema Definition (centralized)
+schema: |
+  users(user_id INT PRIMARY KEY, name TEXT, email TEXT, created_at DATE)
+  accounts(account_id INT PRIMARY KEY, user_id INT, account_type TEXT, balance DECIMAL, currency TEXT)
+  expenses(expense_id INT PRIMARY KEY, user_id INT, category TEXT, amount DECIMAL, date DATE, description TEXT)
+  income(income_id INT PRIMARY KEY, user_id INT, source TEXT, amount DECIMAL, date DATE)
+  budgets(budget_id INT PRIMARY KEY, user_id INT, category TEXT, monthly_limit DECIMAL, start_date DATE)
+  transactions(txn_id INT PRIMARY KEY, account_id INT, txn_type TEXT, amount DECIMAL, date DATE, merchant TEXT)
+
+# Schema (simple version for prompts)
+schema_simple: "users(user_id, name, email, created_at), accounts(account_id, user_id, account_type, balance, currency), expenses(expense_id, user_id, category, amount, date, description), income(income_id, user_id, source, amount, date), budgets(budget_id, user_id, category, monthly_limit, start_date), transactions(txn_id, account_id, txn_type, amount, date, merchant)"
