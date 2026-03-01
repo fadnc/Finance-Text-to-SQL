@@ -11,7 +11,6 @@ with open("configs/training_config.yaml") as f:
 
 SCHEMA = config["schema_simple"]
 
-# Data for generating varied examples
 names = ["Fadhil", "Rahul", "Aisha", "Sarah", "Michael", "Emma", "James", "Priya"]
 categories = ["Food", "Travel", "Rent", "Utilities", "Entertainment", "Healthcare", "Shopping", "Transportation"]
 account_types = ["Savings", "Checking", "Investment", "Credit"]
@@ -21,7 +20,6 @@ currencies = ["USD", "EUR", "GBP", "INR"]
 
 data = []
 
-# =================== SIMPLE AGGREGATIONS ===================
 for _ in range(15):
     name = random.choice(names)
     category = random.choice(categories)
@@ -39,7 +37,7 @@ for _ in range(10):
         "output": f"SELECT SUM(i.amount) FROM income i JOIN users u ON i.user_id = u.user_id WHERE u.name = '{name}' AND i.date >= DATE('now', 'start of year');"
     })
 
-# =================== COUNT QUERIES ===================
+# count queries
 for _ in range(10):
     category = random.choice(categories)
     data.append({
@@ -56,7 +54,7 @@ for _ in range(10):
         "output": f"SELECT COUNT(*) FROM accounts a JOIN users u ON a.user_id = u.user_id WHERE u.name = '{name}';"
     })
 
-# =================== AVG / MIN / MAX ===================
+# average/ min /max
 for _ in range(10):
     name = random.choice(names)
     data.append({
@@ -73,7 +71,7 @@ for _ in range(10):
         "output": f"SELECT MAX(e.amount) FROM expenses e JOIN users u ON e.user_id = u.user_id WHERE u.name = '{name}';"
     })
 
-# =================== GROUP BY ===================
+#group by queries
 for _ in range(15):
     name = random.choice(names)
     data.append({
@@ -96,7 +94,7 @@ for _ in range(10):
         "output": "SELECT u.name, strftime('%Y-%m', i.date) AS month, SUM(i.amount) AS total FROM income i JOIN users u ON i.user_id = u.user_id GROUP BY u.user_id, u.name, strftime('%Y-%m', i.date);"
     })
 
-# =================== HAVING CLAUSE ===================
+#having queries
 for _ in range(10):
     threshold = random.choice([100, 500, 1000, 2000])
     data.append({
@@ -113,7 +111,7 @@ for _ in range(10):
         "output": f"SELECT u.name, COUNT(*) AS txn_count FROM expenses e JOIN users u ON e.user_id = u.user_id GROUP BY u.user_id, u.name HAVING COUNT(*) > {count};"
     })
 
-# =================== MULTI-TABLE JOINS ===================
+#multitable joins
 for _ in range(15):
     name = random.choice(names)
     acc_type = random.choice(account_types)
@@ -131,7 +129,7 @@ for _ in range(10):
         "output": f"SELECT SUM(a.balance) AS net_worth FROM accounts a JOIN users u ON a.user_id = u.user_id WHERE u.name = '{name}';"
     })
 
-# =================== SUBQUERIES ===================
+# subqueries
 for _ in range(10):
     data.append({
         "instruction": "Write a SQL query for the following question",
@@ -154,7 +152,7 @@ for _ in range(10):
         "output": f"SELECT u.name FROM users u WHERE u.user_id NOT IN (SELECT DISTINCT user_id FROM expenses WHERE category = '{category}');"
     })
 
-# =================== DATE FILTERING ===================
+# data filtering
 for _ in range(10):
     name = random.choice(names)
     data.append({
@@ -171,7 +169,7 @@ for _ in range(10):
         "output": f"SELECT SUM(e.amount) FROM expenses e JOIN users u ON e.user_id = u.user_id WHERE u.name = '{name}' AND e.date >= DATE('now', 'start of month', '-2 months');"
     })
 
-# =================== ORDER BY / LIMIT ===================
+# order by queries
 for _ in range(10):
     name = random.choice(names)
     n = random.choice([3, 5, 10])
@@ -188,7 +186,7 @@ for _ in range(10):
         "output": "SELECT * FROM transactions ORDER BY date DESC LIMIT 5;"
     })
 
-# =================== BUDGET COMPARISON ===================
+# comparison of budget
 for _ in range(10):
     name = random.choice(names)
     data.append({
@@ -206,7 +204,7 @@ for _ in range(10):
         "output": f"SELECT b.monthly_limit - COALESCE(SUM(e.amount), 0) AS remaining FROM budgets b JOIN users u ON b.user_id = u.user_id LEFT JOIN expenses e ON b.user_id = e.user_id AND b.category = e.category AND e.date >= DATE('now', 'start of month') WHERE u.name = '{name}' AND b.category = '{category}' GROUP BY b.monthly_limit;"
     })
 
-# =================== CASE STATEMENTS ===================
+# case statements
 for _ in range(10):
     name = random.choice(names)
     data.append({
