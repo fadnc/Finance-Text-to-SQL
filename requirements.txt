@@ -1,0 +1,14 @@
+transformers
+datasets
+peft
+trl
+accelerate
+bitsandbytes
+sentencepiece
+mlflow
+fastapi
+uvicorn
+pyyaml
+sqlalchemy
+pandas
+numpy
