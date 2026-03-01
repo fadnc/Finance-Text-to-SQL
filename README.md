@@ -98,11 +98,11 @@ python -m src.training.train
 ```
 
 Training features:
-- ✅ 4-bit NF4 quantization (reduces VRAM ~4x)
-- ✅ LoRA adapters (trains only ~0.1% of parameters)
-- ✅ Gradient checkpointing (trades compute for memory)
-- ✅ Paged AdamW 8-bit optimizer (further memory reduction)
-- ✅ MLflow experiment tracking
+-  4-bit NF4 quantization (reduces VRAM ~4x)
+-  LoRA adapters (trains only ~0.1% of parameters)
+-  Gradient checkpointing (trades compute for memory)
+-  Paged AdamW 8-bit optimizer (further memory reduction)
+-  MLflow experiment tracking
 
 ## Evaluation
 
@@ -174,14 +174,14 @@ transactions(txn_id, account_id, txn_type, amount, date, merchant)
 
 The training dataset includes diverse SQL patterns:
 
-- ✅ Simple aggregations (SUM, COUNT, AVG, MIN, MAX)
-- ✅ GROUP BY with HAVING clauses
-- ✅ Multi-table JOINs
-- ✅ Subqueries (correlated and non-correlated)
-- ✅ Date filtering (relative dates, quarters, months)
-- ✅ ORDER BY / LIMIT
-- ✅ CASE statements
-- ✅ Budget vs actual comparisons
+-  Simple aggregations (SUM, COUNT, AVG, MIN, MAX)
+-  GROUP BY with HAVING clauses
+-  Multi-table JOINs
+-  Subqueries (correlated and non-correlated)
+-  Date filtering (relative dates, quarters, months)
+-  ORDER BY / LIMIT
+-  CASE statements
+-  Budget vs actual comparisons
 
 ## Technical Details
 
