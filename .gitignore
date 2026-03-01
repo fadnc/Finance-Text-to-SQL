@@ -1,7 +1,40 @@
+# Environment
 .env
+.venv/
+venv/
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Model outputs (large files)
 models/
+*.bin
+*.safetensors
+
+# MLflow & experiment tracking
 mlruns/
+mlflow.db
+exp/
+
+# Generated data (regeneratable)
+data/processed/*.db
+data/processed/*.json
+
+# Logs
+logs/
+*.log
 log.md
-.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
