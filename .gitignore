@@ -1,1 +1,7 @@
 .env
+__pycache__/
+*.pyc
+models/
+mlruns/
+log.md
+.venv/
