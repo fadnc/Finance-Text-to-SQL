@@ -17,9 +17,9 @@ def run_command(cmd, description):
     result = subprocess.run(cmd, shell=True)
     
     if result.returncode != 0:
-        print(f"❌ FAILED: {description}")
+        print(f" FAILED: {description}")
         return False
-    print(f"✅ SUCCESS: {description}")
+    print(f" SUCCESS: {description}")
     return True
 
 
@@ -38,11 +38,11 @@ def main():
     
     for cmd, desc in steps:
         if not run_command(cmd, desc):
-            print(f"\n⚠️ Pipeline stopped at: {desc}")
+            print(f"\n Pipeline stopped at: {desc}")
             sys.exit(1)
     
     print("\n" + "="*60)
-    print("🎉 ALL STEPS COMPLETED SUCCESSFULLY!")
+    print(" ALL STEPS COMPLETED SUCCESSFULLY!")
     print("="*60)
     print("\nCheck results in: data/processed/eval_results.json")
 
