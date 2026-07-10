@@ -8,7 +8,7 @@ def load_model(model_name: str, use_4bit: bool = True):
     """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     
-    # Check if CUDA and bitsandbytes are available for 4-bit
+    # Check if CUDA and bitsandbytes are available for 4-bit quantization
     cuda_available = torch.cuda.is_available()
     bnb_available = False
     
