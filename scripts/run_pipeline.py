@@ -32,6 +32,10 @@ def main():
 
     steps = [
         ([sys.executable, "data/prepare_dataset.py"], "Prepare Gretel finance dataset"),
+        (
+            [sys.executable, "data/prepare_multi_dataset.py"],
+            "Prepare Spider data and dataset mixture",
+        ),
         ([sys.executable, "-m", "src.training.train"], "Train model with QLoRA"),
         (
             [sys.executable, "-m", "scripts.generate_predictions"],
@@ -50,6 +54,14 @@ def main():
                 "api/static/evaluation.json",
             ],
             "Evaluate model",
+        ),
+        (
+            [sys.executable, "-m", "scripts.generate_predictions", "--split", "spider_dev"],
+            "Generate predictions on held-out Spider dev databases",
+        ),
+        (
+            [sys.executable, "-m", "src.eval.eval_spider"],
+            "Evaluate exact SQL match on Spider dev",
         ),
     ]
 

@@ -1,7 +1,7 @@
 # Model Configuration
 # model_name: microsoft/Phi-3-mini-4k-instruct
 model_name: TinyLlama/TinyLlama-1.1B-Chat-v1.0
-output_dir: models/tinyllama-gretel-finance-sql
+output_dir: models/tinyllama-multidataset-sql
 
 # Dataset Configuration
 # Source: https://huggingface.co/datasets/gretelai/synthetic_text_to_sql
@@ -19,13 +19,26 @@ dataset:
   max_eval_samples: null
   prepared_dir: data/processed
 
+# Additional cross-domain supervision. Spider is used for training and
+# database-disjoint validation; its official dev split remains held out.
+training_datasets:
+  spider:
+    repo_id: griffith-bigdata/GRAST-SQL-Spider
+    revision: d6702d32cd917b57d32d21bb41d027ee49fa0c3e
+    train_file: spider_train_samples.json
+    dev_file: spider_dev_samples.json
+    license: CC-BY-SA-4.0
+    validation_size: 0.1
+    finance_repeat: 3
+    cache_dir: .hf_cache/hub
+
 # Paths
 db_path: data/processed/finance.db
 
 # Training Hyperparameters
 batch_size: 1
 gradient_accumulation_steps: 4
-epochs: 3
+epochs: 1
 learning_rate: 0.0002
 max_seq_length: 512
 seed: 42

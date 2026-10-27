@@ -10,7 +10,7 @@ import yaml
 from transformers import set_seed
 from trl import SFTConfig, SFTTrainer
 
-from src.data.gretel import load_gretel_splits
+from src.data.multi_dataset import load_multi_dataset_splits
 from src.training.formatting import format_dataset
 from src.training.lora_config import apply_lora
 from src.utils.model_loader import load_model
@@ -23,8 +23,8 @@ def main():
     seed = config.get("seed", 42)
     set_seed(seed)
 
-    print("Loading gretelai/synthetic_text_to_sql...")
-    splits = load_gretel_splits(config)
+    print("Loading the prepared Gretel finance + Spider training mixture...")
+    splits = load_multi_dataset_splits(config)
     print(
         f"Rows: train={len(splits['train'])}, "
         f"validation={len(splits['validation'])}, test={len(splits['test'])}"
@@ -45,8 +45,9 @@ def main():
     model = apply_lora(model)
     model.print_trainable_parameters()
 
+    training_output_dir = config.get("training_output_dir", config["output_dir"])
     training_args = SFTConfig(
-        output_dir=config["output_dir"],
+        output_dir=training_output_dir,
         per_device_train_batch_size=config["batch_size"],
         per_device_eval_batch_size=1,
         gradient_accumulation_steps=config.get("gradient_accumulation_steps", 1),
@@ -116,10 +117,10 @@ def main():
         if mlflow_active:
             mlflow.end_run()
 
-    trainer.save_model(config["output_dir"])
-    tokenizer.save_pretrained(config["output_dir"])
+    trainer.save_model(training_output_dir)
+    tokenizer.save_pretrained(training_output_dir)
 
-    print(f"Adapter saved to {config['output_dir']}")
+    print(f"Adapter saved to {training_output_dir}")
     if metrics:
         print(f"Validation metrics: {metrics}")
 

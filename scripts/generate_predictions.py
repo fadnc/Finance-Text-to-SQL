@@ -65,12 +65,15 @@ def load_results(output_path: Path, valid_ids: set) -> list[dict]:
 def main():
     parser = argparse.ArgumentParser(description="Generate SQL predictions")
     parser.add_argument(
-        "--split", default="test", choices=["test", "validation"], help="Dataset split"
+        "--split",
+        default="test",
+        choices=["test", "validation", "spider_dev"],
+        help="Gretel split or held-out Spider development set",
     )
     parser.add_argument("--limit", type=int, default=None, help="Maximum samples")
     parser.add_argument(
         "--output",
-        default="data/processed/predictions.json",
+        default=None,
         help="Path for the predictions JSON",
     )
     parser.add_argument(
@@ -82,12 +85,21 @@ def main():
 
     config = load_config()
     print("Loading dataset...")
-    splits = load_gretel_splits(config)
-    test_data = splits[args.split]
+    if args.split == "spider_dev":
+        with open("data/processed/spider_dev.json", encoding="utf-8") as f:
+            test_data = json.load(f)
+    else:
+        splits = load_gretel_splits(config)
+        test_data = splits[args.split]
     if args.limit:
         test_data = test_data.select(range(min(args.limit, len(test_data))))
 
-    output_path = Path(args.output)
+    default_output = (
+        "data/processed/spider_dev_predictions.json"
+        if args.split == "spider_dev"
+        else "data/processed/predictions.json"
+    )
+    output_path = Path(args.output or default_output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     valid_ids = {sample["id"] for sample in test_data}
     results = load_results(output_path, valid_ids) if args.resume else []
