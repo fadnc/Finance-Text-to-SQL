@@ -16,7 +16,9 @@ for Text-to-SQL. Key features:
 - **Parameter-efficient fine-tuning**: QLoRA with 4-bit NF4 quantization and LoRA adapters
 - **Memory optimization**: gradient checkpointing and paged optimizers for consumer GPUs
 - **Execution-based evaluation**: creates an in-memory SQLite database from each sample's `sql_context` and compares actual query results
-- **Error analysis**: classifies failures as syntax, column/table hallucination, logic, or gold-execution errors
+- **Base/model comparison**: scores the base model and fine-tuned adapter on the same held-out examples
+- **Redis inference cache**: caches validated SQL with model/schema-aware keys, configurable TTL, and graceful fallback
+- **Safe evaluation**: uses read-only SQLite execution with timeouts and resource limits
 
 ## Dataset
 
@@ -96,6 +98,8 @@ To use every domain instead of finance only, set `dataset.domains: []` in
 ├── models/                       # Saved LoRA adapters (git-ignored)
 ├── scripts/
 │   ├── generate_predictions.py
+│   ├── evaluate_models.py       # Base vs fine-tuned held-out comparison
+│   ├── benchmark_cache.py       # Redis cache workload benchmark
 │   ├── run_pipeline.py
 │   └── validate_setup.py
 ├── src/
@@ -104,7 +108,10 @@ To use every domain instead of finance only, set `dataset.domains: []` in
 │   │   └── multi_dataset.py      # Combined Gretel + Spider train/validation
 │   ├── eval/
 │   │   ├── eval.py
-│   │   └── eval_accuracy.py      # Per-context execution accuracy + error analysis
+│   │   ├── metrics.py           # Safe execution, validity, exact match, latency metrics
+│   │   └── eval_accuracy.py
+│   ├── cache/
+│   │   └── sql_cache.py          # Optional Redis SQL response cache
 │   ├── inference/
 │   │   ├── gen_sql.py
 │   │   ├── demo_sql.py           # Schema-aware fallback for demo questions
@@ -120,7 +127,9 @@ To use every domain instead of finance only, set `dataset.domains: []` in
 │       └── prompting.py          # Shared training/inference prompt builder
 ├── tests/
 │   ├── test_api_generation.py    # Endpoint fallback/validation tests
-│   └── test_sql_guard.py         # Regression tests for SQL guardrails
+│   ├── test_eval_metrics.py      # Evaluation metrics and SQLite safety tests
+│   ├── test_sql_cache.py         # Redis cache behavior and failure tests
+│   └── test_sql_guard.py         # SQL guardrail regression tests
 └── mlruns/                       # MLflow experiment tracking
 ```
 
@@ -198,7 +207,7 @@ dataset:
 
 batch_size: 1
 gradient_accumulation_steps: 4
-epochs: 3
+epochs: 1
 learning_rate: 0.0002
 max_seq_length: 512
 ```
@@ -244,31 +253,44 @@ python -m src.eval.eval \
 | Metric | Description |
 |--------|-------------|
 | **Execution Accuracy** | Predicted SQL returns the same result set as the reference SQL on the sample's own SQLite context |
-| **Exact Match Accuracy** | Normalized SQL strings match exactly |
-| **Error Types** | Syntax, column hallucination, table hallucination, logic error, gold execution error |
+| **Exact Match Accuracy** | Ignores whitespace/comments and folds keyword case while preserving identifiers and literals; not proof of SQL equivalence |
+| **Valid SQL Rate** | Percentage of outputs accepted by SQLite against the sample schema, with errors categorized |
+| **Generation Latency** | Per-example latency, mean, P50, P95, P99, and output tokens/second |
+| **Test Loss** | Held-out target-SQL token loss with prompt tokens masked; includes perplexity |
 
 Some reference queries in the source dataset use SQLite-incompatible features
 or write statements. Those are reported as `gold_execution_errors` and excluded
 from the execution-accuracy denominator; they are not counted as model failures.
 
-### Current Local Results
+### Latest Base vs Fine-tuned Results
 
-TinyLlama 1.1B + rank-16 QLoRA, evaluated on the official finance test split:
+Measured with greedy decoding on all 72 held-out Gretel finance examples using
+the same base model and generation settings. The reference SQL executes for 48
+examples; the other 24 are excluded from execution-accuracy denominators.
 
-| Metric | Result |
-|--------|--------|
-| **Execution Accuracy** | 56.25% (27 / 48 SQLite-executable references) |
-| **Exact Match Accuracy** | 19.44% (14 / 72) |
-| **Gold Execution Errors** | 24 / 72 (excluded from execution accuracy) |
-| **Model Failures** | 14 logic, 6 column hallucination, 1 execution |
+| Metric | Base TinyLlama | Fine-tuned adapter |
+|---|---:|---:|
+| Exact match | 0.0% | 16.7% (12 / 72) |
+| Valid SQL rate | 45.8% (33 / 72) | 65.3% (47 / 72) |
+| Execution accuracy | 27.1% (13 / 48) | 58.3% (28 / 48) |
+| Test loss | 0.8383 | 0.7739 |
+| Mean generation latency | 7,249.5 ms | 2,106.4 ms |
+| P50 / P95 / P99 latency | 7,449.5 / 10,360.7 / 10,686.6 ms | 1,851.2 / 4,046.1 / 5,359.2 ms |
 
-These are the previous finance-only model's baseline scores. The multi-dataset
-run writes a new adapter to `models/tinyllama-multidataset-sql` and produces
-separate Gretel execution and Spider normalized exact-match reports.
+The fine-tuned model improved these metrics on this small synthetic finance
+test set; this does not establish real-world accuracy. The dashboard's
+`/evaluation.json` is a separate legacy single-model summary. See
+[`reports/evaluation/`](reports/evaluation/) for the aggregate report and
+per-example predictions.
 
-These values come from `data/processed/eval_results.json`. The dashboard reads
-the summary from `api/static/evaluation.json`, which is regenerated by the
-evaluation command above.
+Run the base-versus-adapter evaluation with:
+
+```bash
+python scripts/evaluate_models.py
+```
+
+Use `--limit 5` for a smoke run or `--output reports/my-run` to select an output
+directory. The command writes `summary.json`, `report.md`, and `predictions.jsonl`.
 
 Run the full pipeline end-to-end:
 
@@ -286,7 +308,7 @@ from src.utils.model_loader import load_model
 from peft import PeftModel
 
 model, tokenizer = load_model("TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-model = PeftModel.from_pretrained(model, "models/tinyllama-gretel-finance-sql")
+model = PeftModel.from_pretrained(model, "models/tinyllama-multidataset-sql")
 
 sql = generate_sql(
     model,
@@ -329,8 +351,10 @@ Generated SQL is validated against a temporary in-memory SQLite database built
 from the schema. The API rewrites common MySQL/Postgres date expressions,
 rejects write statements, and uses a schema-aware fallback for common finance
 demo questions when the model output cannot be validated. The response includes
-`valid`, `source`, `latency_ms`, and an optional `warning`; the dashboard shows
-this status and the request latency under the generated query.
+`valid`, `source`, and `latency_ms`, plus `cache_hit`, `model_version`,
+`generation_latency_ms`, `response_latency_ms`, and `cache_error`. Generation
+latency is null on a cache hit because inference did not run. Send
+`X-Cache-Bypass: true` to bypass cache reads and writes.
 
 Run the SQL guardrail regression tests with:
 
@@ -418,10 +442,48 @@ BitsAndBytesConfig(
   evaluator reports these separately as `gold_execution_errors`
 - The dataset is synthetic; it does not establish real-world accuracy
 
+## Redis Cache and Cache Benchmark
+
+Redis caching is optional. The API caches validated SQL responses for 300
+seconds by default. Keys include digests for the question, schema, model
+artifacts, prompt version, and generation settings. Redis failures fall back to
+inference. Leave `REDIS_URL` unset or set `REDIS_CACHE_ENABLED=false` to bypass
+the cache.
+
+Start Redis and the API with Docker Compose:
+
+```bash
+docker compose -f docker/docker-compose.yml up --build
+```
+
+For a local Python API, install dependencies and start Redis:
+
+```powershell
+.venv\Scripts\pip.exe install -r requirements.txt
+docker compose -f docker/docker-compose.yml up -d redis
+$env:REDIS_URL = "redis://localhost:6379/0"
+$env:REDIS_CACHE_ENABLED = "true"
+$env:REDIS_CACHE_TTL_SECONDS = "300"
+.venv\Scripts\python.exe -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+
+Run the repeated/unique-question cache benchmark:
+
+```powershell
+.venv\Scripts\python.exe scripts/benchmark_cache.py --requests 30 --unique-ratio 0.3 --concurrency 4
+```
+
+It saves measured hit/miss rates, hit/miss latency percentiles, generation
+latency, throughput, and errors to `reports/cache-benchmark.json`. No live
+Redis benchmark has been run in this environment; run this command with a live
+Redis service and API to collect those measurements.
+
+Set `CACHE_ADMIN_TOKEN` to enable `POST /cache/invalidate` and send the token in
+`X-Cache-Admin-Token`. See
+[docs/evaluation-and-cache.md](docs/evaluation-and-cache.md) for configuration,
+evaluation details, and test instructions.
+
 ## License
 
 Project code: MIT. Dataset: see the
 [`gretelai/synthetic_text_to_sql` dataset card](https://huggingface.co/datasets/gretelai/synthetic_text_to_sql).
-# Evaluation and cache setup
-
-See [docs/evaluation-and-cache.md](docs/evaluation-and-cache.md) for the held-out model evaluation, Redis setup, cache benchmark, and test commands.
