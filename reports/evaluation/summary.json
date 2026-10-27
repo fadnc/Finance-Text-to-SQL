@@ -1,0 +1,136 @@
+{
+  "metadata": {
+    "timestamp_utc": "2026-10-27T11:26:28.881339+00:00",
+    "dataset": "data\\processed\\gretel_finance_test.json",
+    "dataset_sha256": "639355601bb40da0a648bc2231e8876afc77f0c5c6e8d4dd555b0f8165247fc8",
+    "examples": 72,
+    "base_model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "adapter": "models\\tinyllama-multidataset-sql",
+    "adapter_present": true,
+    "max_new_tokens": 256,
+    "do_sample": false,
+    "max_loss_sequence_length": 512,
+    "hardware": {
+      "platform": "Windows-11-10.0.26200-SP0",
+      "python": "3.12.10",
+      "torch": "2.10.0+cu128",
+      "cuda": "NVIDIA GeForce RTX 3050 Laptop GPU"
+    },
+    "base_model_revision": "fe8a4ea1ffedaf415f4da2f062534de366a451e6",
+    "adapter_sha256": "dbe485cda9301bb944269b4bbd0b3156a3e13a2c12b023736e0d9698b78c3185"
+  },
+  "models": [
+    {
+      "model": "base",
+      "exact_match_accuracy": 0.0,
+      "valid_sql_rate": 0.4583333333333333,
+      "execution_accuracy": 0.2708333333333333,
+      "execution_examples": 48,
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 7249.51245277791,
+        "p50_ms": 7449.542900001688,
+        "p95_ms": 10360.683474997495,
+        "p99_ms": 10686.572686990985
+      },
+      "mean_tokens_per_second": 25.04243104651481,
+      "test_loss": 0.838281695329292,
+      "perplexity": 2.3123901702469194,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.0,
+          "valid_sql": 0.4
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.0,
+          "valid_sql": 0.5116279069767442
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 0.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.0,
+          "valid_sql": 0.3333333333333333
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.5
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.0,
+          "valid_sql": 0.6
+        }
+      }
+    },
+    {
+      "model": "fine_tuned",
+      "exact_match_accuracy": 0.16666666666666666,
+      "valid_sql_rate": 0.6527777777777778,
+      "execution_accuracy": 0.5833333333333334,
+      "execution_examples": 48,
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 2106.41297083344,
+        "p50_ms": 1851.1532000047737,
+        "p95_ms": 4046.1388549993,
+        "p99_ms": 5359.200078008149
+      },
+      "mean_tokens_per_second": 18.85191217080162,
+      "test_loss": 0.7738588099073491,
+      "perplexity": 2.168116481812372,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.1,
+          "valid_sql": 0.9
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.2558139534883721,
+          "valid_sql": 0.7441860465116279
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 0.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.0,
+          "valid_sql": 0.4444444444444444
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.0,
+          "valid_sql": 0.4
+        }
+      }
+    }
+  ]
+}
