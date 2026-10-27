@@ -1,9 +1,26 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
   api:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     ports:
       - "8000:8000"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      REDIS_CACHE_ENABLED: "true"
+      REDIS_CACHE_TTL_SECONDS: "300"
+    depends_on:
+      redis:
+        condition: service_healthy

@@ -1,7 +1,10 @@
-# Finance Text-to-SQL (Gretel)
+# Finance Text-to-SQL (Gretel + Spider)
 
-Domain-adaptive fine-tuning of small language models for natural language to SQL
-on the **finance subset of [`gretelai/synthetic_text_to_sql`](https://huggingface.co/datasets/gretelai/synthetic_text_to_sql)** using QLoRA.
+Fine-tuning small language models for natural language to SQL using QLoRA and
+two public datasets: finance examples from
+[`gretelai/synthetic_text_to_sql`](https://huggingface.co/datasets/gretelai/synthetic_text_to_sql)
+and cross-domain examples from
+[Spider](https://yale-lily.github.io/spider).
 
 ## Overview
 
@@ -17,7 +20,27 @@ for Text-to-SQL. Key features:
 
 ## Dataset
 
-The source dataset is loaded directly from the Hugging Face Hub:
+The upstream Gretel dataset contains 100,000 training rows, but the project
+filters it to finance. That leaves 1,051 examples, split into 945 training and
+106 validation rows, plus 72 official test rows. Spider adds 8,659 human-written
+cross-domain training examples and 1,034 held-out development examples. The
+training mixture has about 10,600 presentations: 7,774 Spider training rows
+after a database-disjoint validation holdout, plus the 945 finance examples
+repeated three times to keep the finance task represented during training.
+
+The current mixture uses these sources:
+
+| Dataset | Use | License |
+|---|---|---|
+| Gretel synthetic text-to-SQL | Finance train, validation, and SQLite-context test | Apache-2.0 |
+| Spider 1.0 (GRAST-SQL schema metadata) | Cross-domain train, validation, and held-out dev exact-match evaluation | CC BY-SA 4.0 |
+
+Spider's dev databases remain out of the training and validation splits. Its
+rows do not include database contents, so Spider is evaluated by normalized SQL
+exact match; execution accuracy is measured on Gretel's per-example SQLite
+contexts.
+
+The Gretel source can be loaded directly from the Hugging Face Hub:
 
 ```python
 from datasets import load_dataset
@@ -63,6 +86,7 @@ To use every domain instead of finance only, set `dataset.domains: []` in
 │   └── training_config.yaml      # Centralized configuration
 ├── data/
 │   ├── prepare_dataset.py        # Load + filter + snapshot Gretel dataset
+│   ├── prepare_multi_dataset.py  # Fetch and normalize Spider schema metadata
 │   ├── gen_dataset.py            # Deprecated shim; routes to prepare_dataset.py
 │   ├── setup_test_db.py          # Optional personal-finance demo database
 │   └── processed/                # Prepared JSON, predictions, evaluation output
@@ -76,7 +100,8 @@ To use every domain instead of finance only, set `dataset.domains: []` in
 │   └── validate_setup.py
 ├── src/
 │   ├── data/
-│   │   └── gretel.py             # Dataset loader + DDL extraction
+│   │   ├── gretel.py             # Dataset loader + DDL extraction
+│   │   └── multi_dataset.py      # Combined Gretel + Spider train/validation
 │   ├── eval/
 │   │   ├── eval.py
 │   │   └── eval_accuracy.py      # Per-context execution accuracy + error analysis
@@ -145,8 +170,12 @@ data/processed/finance_sql.json          # legacy-compatible training snapshot
 data/processed/dataset_info.json
 ```
 
-Training and inference load the dataset from the Hub directly; the JSON files
-are for inspection and offline tooling.
+The Gretel JSON snapshots are used by training. Spider data is downloaded from
+the pinned public dataset revision and normalized to `CREATE TABLE` schemas:
+
+```bash
+python data/prepare_multi_dataset.py
+```
 
 ### Validate Setup
 
@@ -160,7 +189,7 @@ Edit `configs/training_config.yaml`:
 
 ```yaml
 model_name: TinyLlama/TinyLlama-1.1B-Chat-v1.0
-output_dir: models/tinyllama-gretel-finance-sql
+output_dir: models/tinyllama-multidataset-sql
 
 dataset:
   name: gretelai/synthetic_text_to_sql
@@ -174,7 +203,7 @@ learning_rate: 0.0002
 max_seq_length: 512
 ```
 
-Run training:
+Prepare both sources and train the combined model:
 
 ```bash
 python -m src.training.train
@@ -189,7 +218,9 @@ Training features:
 - Grouped train/validation split so identical questions never straddle the boundary
 - MLflow parameter/metric logging (optional; failures do not stop training)
 
-The official Gretel test split is never used during training.
+Gretel's official test split and Spider's official dev split are never used for
+training. The new adapter is saved separately from the previous TinyLlama
+adapter so the prior model remains available for comparison.
 
 ## Evaluation
 
@@ -230,6 +261,10 @@ TinyLlama 1.1B + rank-16 QLoRA, evaluated on the official finance test split:
 | **Exact Match Accuracy** | 19.44% (14 / 72) |
 | **Gold Execution Errors** | 24 / 72 (excluded from execution accuracy) |
 | **Model Failures** | 14 logic, 6 column hallucination, 1 execution |
+
+These are the previous finance-only model's baseline scores. The multi-dataset
+run writes a new adapter to `models/tinyllama-multidataset-sql` and produces
+separate Gretel execution and Spider normalized exact-match reports.
 
 These values come from `data/processed/eval_results.json`. The dashboard reads
 the summary from `api/static/evaluation.json`, which is regenerated by the
@@ -387,3 +422,6 @@ BitsAndBytesConfig(
 
 Project code: MIT. Dataset: see the
 [`gretelai/synthetic_text_to_sql` dataset card](https://huggingface.co/datasets/gretelai/synthetic_text_to_sql).
+# Evaluation and cache setup
+
+See [docs/evaluation-and-cache.md](docs/evaluation-and-cache.md) for the held-out model evaluation, Redis setup, cache benchmark, and test commands.

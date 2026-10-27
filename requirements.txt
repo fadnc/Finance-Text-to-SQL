@@ -12,3 +12,5 @@ pyyaml
 sqlalchemy
 pandas
 numpy
+sqlparse
+redis
