@@ -1,16 +1,20 @@
 """
 SQL Query Evaluation Metrics.
-Provides execution accuracy, exact match, and error analysis.
+
+Provides execution accuracy against either a shared SQLite database or the
+per-example SQL context stored in the Gretel dataset.  The latter is necessary
+because each dataset row can define its own schema and seed rows.
 """
 
-import sqlite3
 import re
+import sqlite3
 from enum import Enum
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 
 class ErrorType(Enum):
     """SQL error classification."""
+
     NONE = "none"
     SYNTAX = "syntax_error"
     SEMANTIC = "semantic_error"
@@ -18,196 +22,204 @@ class ErrorType(Enum):
     TABLE_HALLUCINATION = "table_hallucination"
     LOGIC_ERROR = "logic_error"
     EXECUTION_ERROR = "execution_error"
+    GOLD_EXECUTION_ERROR = "gold_execution_error"
+    CONTEXT_ERROR = "context_error"
 
 
 def normalize_sql(sql: str) -> str:
-    """
-    Normalize SQL query for comparison.
-    Removes extra whitespace, converts to lowercase, removes trailing semicolon.
-    """
+    """Normalize SQL for exact-string comparison."""
     sql = sql.strip().lower()
-    sql = re.sub(r'\s+', ' ', sql)
-    sql = sql.rstrip(';')
+    sql = re.sub(r"\s+", " ", sql)
+    sql = sql.rstrip(";")
     return sql
 
 
 def exact_match_accuracy(predicted_sql: str, ground_truth_sql: str) -> bool:
-    """
-    Check if predicted SQL exactly matches ground truth after normalization.
-    
-    Args:
-        predicted_sql: Generated SQL query
-        ground_truth_sql: Expected SQL query
-        
-    Returns:
-        True if queries match exactly after normalization
-    """
+    """Check whether two SQL strings match after normalization."""
     return normalize_sql(predicted_sql) == normalize_sql(ground_truth_sql)
 
 
-def execution_accuracy(
-    predicted_sql: str, 
-    ground_truth_sql: str, 
-    db_path: str
-) -> bool:
-    """
-    Check if predicted SQL produces the same result as ground truth.
-    
-    Args:
-        predicted_sql: Generated SQL query
-        ground_truth_sql: Expected SQL query
-        db_path: Path to SQLite database
-        
-    Returns:
-        True if result sets match
-    """
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+def _open_database(db_path: Optional[str], context: Optional[str]) -> sqlite3.Connection:
+    """Open a read-only connection to a fixture DB or an in-memory context."""
+    if context:
+        conn = sqlite3.connect(":memory:")
+        conn.executescript(context)
+        conn.execute("PRAGMA query_only = ON")
+        return conn
+
+    if db_path:
+        conn = sqlite3.connect(db_path)
+        conn.execute("PRAGMA query_only = ON")
+        return conn
+
+    raise ValueError("Either db_path or context must be provided")
+
+
+def _classify_sqlite_error(exc: Exception) -> Tuple[ErrorType, str]:
+    error_msg = str(exc)
+    lower = error_msg.lower()
+
+    if "no such column" in lower:
+        match = re.search(r"no such column: (\w+)", lower)
+        column = match.group(1) if match else "unknown"
+        return ErrorType.COLUMN_HALLUCINATION, f"Invalid column: {column}"
+
+    if "no such table" in lower:
+        match = re.search(r"no such table: (\w+)", lower)
+        table = match.group(1) if match else "unknown"
+        return ErrorType.TABLE_HALLUCINATION, f"Invalid table: {table}"
+
+    if "syntax error" in lower or "near " in lower:
+        return ErrorType.SYNTAX, error_msg
+
+    return ErrorType.EXECUTION_ERROR, error_msg
+
+
+def evaluate_example(
+    predicted_sql: str,
+    ground_truth_sql: str,
+    db_path: Optional[str] = None,
+    context: Optional[str] = None,
+) -> dict:
+    """Evaluate one prediction against a shared DB or an in-memory context."""
+    exact_match = exact_match_accuracy(predicted_sql, ground_truth_sql)
 
     try:
-        cursor.execute(predicted_sql)
-        pred_result = set(cursor.fetchall())
+        conn = _open_database(db_path, context)
+    except Exception as exc:
+        return {
+            "predicted": predicted_sql,
+            "expected": ground_truth_sql,
+            "exec_match": False,
+            "exact_match": exact_match,
+            "gold_executable": False,
+            "error_type": ErrorType.CONTEXT_ERROR.value,
+            "error_msg": str(exc),
+        }
 
-        cursor.execute(ground_truth_sql)
-        gt_result = set(cursor.fetchall())
+    try:
+        try:
+            gold_rows = conn.execute(ground_truth_sql).fetchall()
+        except Exception as exc:
+            return {
+                "predicted": predicted_sql,
+                "expected": ground_truth_sql,
+                "exec_match": False,
+                "exact_match": exact_match,
+                "gold_executable": False,
+                "error_type": ErrorType.GOLD_EXECUTION_ERROR.value,
+                "error_msg": str(exc),
+            }
 
-        return pred_result == gt_result
+        try:
+            predicted_rows = conn.execute(predicted_sql).fetchall()
+        except Exception as exc:
+            error_type, error_msg = _classify_sqlite_error(exc)
+            return {
+                "predicted": predicted_sql,
+                "expected": ground_truth_sql,
+                "exec_match": False,
+                "exact_match": exact_match,
+                "gold_executable": True,
+                "error_type": error_type.value,
+                "error_msg": error_msg,
+            }
 
-    except Exception:
-        return False
+        exec_match = set(predicted_rows) == set(gold_rows)
+        return {
+            "predicted": predicted_sql,
+            "expected": ground_truth_sql,
+            "exec_match": exec_match,
+            "exact_match": exact_match,
+            "gold_executable": True,
+            "error_type": ErrorType.NONE.value if exec_match else ErrorType.LOGIC_ERROR.value,
+            "error_msg": "" if exec_match else "Results do not match",
+        }
     finally:
         conn.close()
+
+
+def execution_accuracy(
+    predicted_sql: str,
+    ground_truth_sql: str,
+    db_path: Optional[str] = None,
+    context: Optional[str] = None,
+) -> bool:
+    """Return True when predicted and ground-truth queries return the same rows."""
+    result = evaluate_example(predicted_sql, ground_truth_sql, db_path, context)
+    return result["exec_match"]
 
 
 def classify_error(
-    predicted_sql: str, 
-    ground_truth_sql: str, 
-    db_path: str,
+    predicted_sql: str,
+    ground_truth_sql: str,
+    db_path: Optional[str] = None,
     schema_columns: Optional[list] = None,
-    schema_tables: Optional[list] = None
+    schema_tables: Optional[list] = None,
+    context: Optional[str] = None,
 ) -> Tuple[bool, ErrorType, str]:
-    """
-    Classify the type of error in a predicted SQL query.
-    
-    Args:
-        predicted_sql: Generated SQL query
-        ground_truth_sql: Expected SQL query
-        db_path: Path to SQLite database
-        schema_columns: List of valid column names
-        schema_tables: List of valid table names
-        
-    Returns:
-        Tuple of (is_correct, error_type, error_message)
-    """
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Get schema info if not provided
-    if schema_tables is None:
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        schema_tables = [row[0].lower() for row in cursor.fetchall()]
-    
-    if schema_columns is None:
-        schema_columns = []
-        for table in schema_tables:
-            cursor.execute(f"PRAGMA table_info({table})")
-            schema_columns.extend([row[1].lower() for row in cursor.fetchall()])
-    
-    try:
-        # Try executing predicted SQL
-        cursor.execute(predicted_sql)
-        pred_result = set(cursor.fetchall())
-        
-        # Execute ground truth
-        cursor.execute(ground_truth_sql)
-        gt_result = set(cursor.fetchall())
-        
-        if pred_result == gt_result:
-            return True, ErrorType.NONE, ""
-        else:
-            return False, ErrorType.LOGIC_ERROR, "Results do not match"
-            
-    except sqlite3.OperationalError as e:
-        error_msg = str(e).lower()
-        
-        # Check for hallucinated columns
-        if "no such column" in error_msg:
-            # Extract the column name
-            match = re.search(r'no such column: (\w+)', error_msg)
-            col_name = match.group(1) if match else "unknown"
-            return False, ErrorType.COLUMN_HALLUCINATION, f"Invalid column: {col_name}"
-        
-        # Check for hallucinated tables
-        if "no such table" in error_msg:
-            match = re.search(r'no such table: (\w+)', error_msg)
-            table_name = match.group(1) if match else "unknown"
-            return False, ErrorType.TABLE_HALLUCINATION, f"Invalid table: {table_name}"
-        
-        # Generic syntax error
-        if "syntax error" in error_msg or "near" in error_msg:
-            return False, ErrorType.SYNTAX, error_msg
-        
-        return False, ErrorType.EXECUTION_ERROR, error_msg
-        
-    except Exception as e:
-        return False, ErrorType.EXECUTION_ERROR, str(e)
-    
-    finally:
-        conn.close()
+    """Classify a prediction as correct, logic error, or execution failure."""
+    result = evaluate_example(predicted_sql, ground_truth_sql, db_path, context)
+    error_type = ErrorType(result["error_type"])
+    return result["exec_match"], error_type, result["error_msg"]
 
 
 def evaluate_batch(
     predictions: list,
     ground_truths: list,
-    db_path: str
+    db_path: Optional[str] = None,
+    contexts: Optional[list] = None,
 ) -> dict:
+    """Evaluate a batch of predictions.
+
+    Execution accuracy is reported over samples whose ground-truth SQL executes
+    successfully.  Some Gretel contexts use SQLite features (or write
+    statements) that cannot be executed read-only; those are reported as
+    ``gold_execution_errors`` instead of being counted as model failures.
     """
-    Evaluate a batch of SQL predictions.
-    
-    Args:
-        predictions: List of predicted SQL queries
-        ground_truths: List of ground truth SQL queries
-        db_path: Path to SQLite database
-        
-    Returns:
-        Dictionary with metrics and error breakdown
-    """
+    if len(predictions) != len(ground_truths):
+        raise ValueError("predictions and ground_truths must have the same length")
+
+    if contexts is None:
+        contexts = [None] * len(predictions)
+    elif len(contexts) != len(predictions):
+        raise ValueError("contexts must have the same length as predictions")
+
     exec_correct = 0
     exact_correct = 0
-    error_counts = {e.value: 0 for e in ErrorType}
-    
+    evaluated_samples = 0
+    error_counts = {error_type.value: 0 for error_type in ErrorType}
     results = []
-    
-    for i, (pred, gt) in enumerate(zip(predictions, ground_truths)):
-        exec_match = execution_accuracy(pred, gt, db_path)
-        exact_match = exact_match_accuracy(pred, gt)
-        is_correct, error_type, error_msg = classify_error(pred, gt, db_path)
-        
-        if exec_match:
+
+    for index, (prediction, ground_truth) in enumerate(zip(predictions, ground_truths)):
+        result = evaluate_example(
+            prediction,
+            ground_truth,
+            db_path=db_path,
+            context=contexts[index],
+        )
+        if result["exec_match"]:
             exec_correct += 1
-        if exact_match:
+        if result["exact_match"]:
             exact_correct += 1
-        
-        error_counts[error_type.value] += 1
-        
-        results.append({
-            "index": i,
-            "predicted": pred,
-            "expected": gt,
-            "exec_match": exec_match,
-            "exact_match": exact_match,
-            "error_type": error_type.value,
-            "error_msg": error_msg
-        })
-    
+        if result["gold_executable"]:
+            evaluated_samples += 1
+
+        error_counts[result["error_type"]] += 1
+        results.append({"index": index, **result})
+
     total = len(predictions)
-    
+    gold_errors = total - evaluated_samples
+
     return {
-        "execution_accuracy": exec_correct / total if total > 0 else 0,
-        "exact_match_accuracy": exact_correct / total if total > 0 else 0,
+        "execution_accuracy": exec_correct / evaluated_samples if evaluated_samples else 0,
+        "execution_accuracy_all_samples": exec_correct / total if total else 0,
+        "exact_match_accuracy": exact_correct / total if total else 0,
         "total_samples": total,
+        "evaluated_samples": evaluated_samples,
+        "gold_execution_errors": gold_errors,
         "exec_correct": exec_correct,
         "exact_correct": exact_correct,
         "error_breakdown": error_counts,
-        "detailed_results": results
+        "detailed_results": results,
     }

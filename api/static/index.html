@@ -1,0 +1,1110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f0f0e">
+  <meta name="description" content="Ask finance questions in plain English and get schema-validated SQL from a fine-tuned Gretel model.">
+  <title>Ledger · Finance SQL Studio</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+    :root{
+      color-scheme:dark;
+      --bg:#0f0f0e;--panel:#171715;--panel-2:#1c1c19;--inset:#12110f;
+      --line:#2a2a26;--line-soft:#232320;
+      --text:#f3f1ea;--muted:#9a988f;--faint:#6f6e67;
+      --orange:#ff7a32;--orange-soft:#ff9b5f;--green:#9fd3a4;--red:#ff9c88;
+      --radius:12px;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;min-height:100vh;color:var(--text);
+      background:
+        radial-gradient(900px 520px at 82% -12%, #ff7a3214, transparent 66%),
+        radial-gradient(700px 420px at -8% 102%, #ff7a320a, transparent 62%),
+        var(--bg);
+      font:14px/1.5 'DM Sans',sans-serif;
+    }
+    button,textarea,input{font:inherit;color:inherit}
+    button{cursor:pointer}
+    ::selection{background:#ff7a3240}
+    ::-webkit-scrollbar{width:10px;height:10px}
+    ::-webkit-scrollbar-thumb{background:#2f2f2a;border-radius:8px;border:2px solid var(--bg)}
+    :focus-visible{outline:2px solid #ff9b5f;outline-offset:2px}
+
+    .shell{max-width:1460px;margin:auto;min-height:100vh;display:grid;grid-template-columns:250px minmax(0,1fr)}
+    .shell > aside{position:sticky;top:0;height:100vh;border-right:1px solid var(--line);padding:26px 18px;display:flex;flex-direction:column;background:#111110}
+    .brand{display:flex;align-items:center;gap:11px;padding:0 8px 32px}
+    .logo{width:34px;height:34px;border-radius:10px;background:var(--orange);display:grid;place-items:center;color:#17110c;font:700 17px 'Space Grotesk';box-shadow:0 6px 22px #ff7a3230}
+    .brand-name{font:600 15px 'Space Grotesk';letter-spacing:-.3px}
+    .brand-sub{display:block;color:var(--muted);font-size:10px;letter-spacing:1.2px;text-transform:uppercase;margin-top:3px}
+    .nav-label{font-size:10px;color:#77766f;letter-spacing:1.3px;text-transform:uppercase;padding:0 10px;margin:9px 0 10px}
+    .nav-item{display:flex;align-items:center;gap:11px;padding:10px;border-radius:8px;color:#a5a49e;margin:2px 0;text-decoration:none;transition:background .15s,color .15s}
+    .nav-item:hover{background:#ff7a320d;color:#ddd9cf}
+    .nav-item.active{background:#ff7a3214;color:var(--orange-soft)}
+    .nav-item svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;flex:none}
+    .sidebar-bottom{margin-top:auto}
+    .connection{border:1px solid var(--line);border-radius:10px;padding:13px;margin-top:18px;background:#151513}
+    .connection-title{font-size:11px;color:var(--muted);margin-bottom:9px}
+    .status{display:flex;align-items:center;gap:8px;font-weight:600;font-size:12px}
+    .dot{width:7px;height:7px;border-radius:50%;background:#716f68;flex:none;transition:background .2s,box-shadow .2s}
+    .dot.up{background:#7cbd83;box-shadow:0 0 10px #7cbd8370}
+    .dot.warn{background:#e0a35c;box-shadow:0 0 10px #e0a35c60}
+    .side-foot{font-size:11px;color:#77766f;padding:17px 10px 0;line-height:1.5}
+
+    main{min-width:0}
+    .topbar{position:sticky;top:0;z-index:20;height:70px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 42px;background:#0f0f0ed9;backdrop-filter:blur(10px)}
+    .crumb{color:var(--muted);font-size:12px}
+    .crumb b{color:var(--text);font-weight:500}
+    .top-right{display:flex;align-items:center;gap:14px}
+    .api-pill{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:11px;padding:8px 11px;border:1px solid var(--line);border-radius:7px;background:transparent;transition:border-color .15s,color .15s}
+    .api-pill:hover{border-color:#5a4738;color:var(--text)}
+    .avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#29231e;color:var(--orange-soft);font-weight:700;font-size:11px;border:1px solid #3a2c22}
+
+    .content{max-width:1120px;margin:auto;padding:52px 42px 72px}
+    .eyebrow{color:var(--orange);font:500 10px 'DM Mono',monospace;letter-spacing:1.6px;text-transform:uppercase;display:flex;align-items:center;gap:9px}
+    .eyebrow:before{content:'';height:1px;width:22px;background:var(--orange)}
+    h1{font:600 clamp(32px,4vw,46px) 'Space Grotesk';letter-spacing:-1.9px;margin:14px 0 10px}
+    .intro{color:var(--muted);margin:0;font-size:14px;max-width:60ch}
+    .intro span{color:#d4d1c8}
+    .hero-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:18px}
+    .meta-pill{font:10px 'DM Mono';color:#a9a79e;border:1px solid var(--line);background:#161614;padding:6px 9px;border-radius:999px;display:flex;align-items:center;gap:6px}
+    .meta-pill i{width:5px;height:5px;border-radius:50%;background:var(--orange);display:block}
+
+    .workspace{margin-top:32px;display:grid;grid-template-columns:minmax(0,1fr) 306px;gap:18px;align-items:start}
+    .stack{min-width:0;display:flex;flex-direction:column;gap:16px}
+    .rail{min-width:0;display:flex;flex-direction:column;gap:16px}
+    .card{border:1px solid var(--line);background:linear-gradient(180deg,#181816,#151513);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 0 #ffffff05 inset}
+    .card-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .card-title{font:600 13px 'Space Grotesk';display:flex;align-items:center;gap:9px}
+    .step{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;background:#ff7a3218;color:var(--orange);font:500 11px 'DM Mono';flex:none}
+    .hint{font-size:11px;color:var(--muted)}
+    .count-pill{font:10px 'DM Mono';color:#a9a79e;background:#242420;border:1px solid #33322d;border-radius:999px;padding:2px 7px;margin-left:2px}
+
+    .query-body{padding:18px 20px 20px}
+    .field-label{display:flex;justify-content:space-between;color:#c5c3bc;font-size:11px;margin-bottom:9px}
+    .field-label span{color:#77766f;font:10px 'DM Mono'}
+    .question{width:100%;height:112px;resize:vertical;border:1px solid #373630;border-radius:8px;background:#111110;color:var(--text);padding:14px 15px;line-height:1.6;outline:none;transition:border-color .2s,box-shadow .2s}
+    .question:focus{border-color:#b65c2d;box-shadow:0 0 0 3px #ff7a3212}
+    .question::placeholder{color:#66655f}
+    .examples{margin-top:15px}
+    .examples-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#77766f;margin-bottom:9px}
+    .chips{display:flex;flex-wrap:wrap;gap:7px}
+    .chip{background:#20201d;border:1px solid #33322d;color:#bcbab2;border-radius:6px;padding:7px 9px;font-size:11px;transition:border-color .15s,color .15s,background .15s}
+    .chip:hover{border-color:#8c4c2d;color:var(--orange-soft);background:#24201b}
+    .submit-row{margin-top:20px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .key-hint{font-size:10px;color:#77766f}
+    .key{font:10px 'DM Mono';border:1px solid #393832;border-radius:4px;padding:3px 5px;color:#aaa89f;margin:0 1px}
+    .generate{border:0;border-radius:7px;padding:11px 16px;background:var(--orange);color:#1b110b;font-weight:700;display:flex;align-items:center;gap:8px;transition:background .2s,transform .2s,box-shadow .2s;box-shadow:0 6px 18px #ff7a3220}
+    .generate:hover{background:#ff9258;transform:translateY(-1px);box-shadow:0 8px 22px #ff7a3230}
+    .generate:disabled{opacity:.68;cursor:wait;transform:none;box-shadow:none}
+    .generate svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+    .loading{display:inline-flex;align-items:center;gap:8px}
+    .spinner{width:12px;height:12px;border:2px solid #613a26;border-top-color:#23160d;border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .result{display:none}
+    .result.show{display:block;animation:rise .25s ease-out}
+    @keyframes rise{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+    .result-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+    .result-head-left{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+    .result-label{font:500 11px 'DM Mono';letter-spacing:.5px;color:#c4c1b8}
+    .result-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+    .latency{font:10px 'DM Mono';color:#8c8a81;white-space:nowrap}
+    .small-btn{border:1px solid #393832;background:#20201d;color:#aaa89f;border-radius:5px;padding:6px 9px;font-size:10px;transition:color .15s,border-color .15s,background .15s}
+    .small-btn:hover{color:#fff;border-color:#777;background:#262622}
+    .small-btn:disabled{opacity:.5;cursor:not-allowed}
+    .small-btn.ghost{background:transparent;border-color:transparent;color:#8b8980;padding:4px 6px}
+    .small-btn.ghost:hover{color:#fff;background:#242420}
+    .badge{font:10px 'DM Mono';letter-spacing:.5px;border-radius:4px;padding:4px 7px;border:1px solid;white-space:nowrap}
+    .badge-model{color:#a9c9e8;border-color:#2f4457;background:#17202a}
+    .badge-fallback{color:#ffc38f;border-color:#553b2c;background:#241a14}
+    .badge-normalized{color:#c9b6e8;border-color:#443a57;background:#1f1a2a}
+    .badge-valid{color:#9fd3a4;border-color:#29402d;background:#151e16}
+    .badge-invalid{color:#ff9c88;border-color:#5a2f28;background:#261613}
+
+    .sql{margin:0;padding:18px 20px;white-space:pre-wrap;word-break:break-word;overflow:auto;color:#e9e4d9;font:12px/1.8 'DM Mono',monospace;background:var(--inset);min-height:96px;max-height:420px;tab-size:2}
+    .sql.pending{color:#77766f}
+    .tok-keyword{color:#ff9b5f}
+    .tok-func{color:#e9c784}
+    .tok-string{color:#a9d3a7}
+    .tok-number{color:#e8b46a}
+    .tok-comment{color:#6f6e67;font-style:italic}
+    .tok-punct{color:#8d8b83}
+    .tok-name{color:#ece8de}
+    .tok-ident{color:#c9b79b}
+    .result-meta{display:none;flex-wrap:wrap;gap:6px 14px;padding:9px 20px;border-top:1px solid var(--line-soft);font:10px 'DM Mono';color:#8b8980}
+    .result-meta.show{display:flex}
+    .result-meta b{color:#b9b6ac;font-weight:500}
+    .sql-status{display:none;padding:10px 20px;border-top:1px solid var(--line);font:10px/1.6 'DM Mono';color:#c5c3bc}
+    .sql-status.show{display:block}
+    .sql-status.ok{color:#9fd3a4;background:#151e16}
+    .sql-status.warn{color:#ffb27f;background:#241a14}
+    .sql-status.bad{color:#ff9c88;background:#2a1714}
+    .error{color:#ff9c88;padding:16px 18px;font-size:12px;line-height:1.6;display:block}
+    .error code{font-family:'DM Mono',monospace;color:#ffb27f}
+
+    #composer,#historyCard,#schemaCard,#evalPanel{scroll-margin-top:88px}
+
+    .history-list{padding:6px 8px;max-height:300px;overflow:auto}
+    .history-empty{padding:18px 12px;color:#7f7e77;font-size:11px;text-align:center}
+    .history-item{width:100%;text-align:left;display:flex;flex-direction:column;gap:5px;background:transparent;border:0;border-bottom:1px solid #232320;padding:11px 12px;border-radius:6px;transition:background .15s}
+    .history-item:last-child{border-bottom:0}
+    .history-item:hover{background:#1d1d1a}
+    .history-q{color:#ddd9cf;font-size:12px;line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+    .history-meta{display:flex;align-items:center;gap:8px;font:9px 'DM Mono';color:#7f7e77;flex-wrap:wrap}
+    .history-meta .badge{font-size:9px;padding:2px 5px}
+    .history-meta .lat{color:#8b8980}
+
+    .schema-head{padding:15px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .schema-head .card-title{font-size:12px}
+    .schema-badge{font:9px 'DM Mono';color:#8e8c84;background:#242420;border:1px solid #2f2f2a;padding:4px 7px;border-radius:4px;white-space:nowrap}
+    .schema-search-wrap{padding:11px 12px;border-bottom:1px solid var(--line-soft)}
+    .schema-search{width:100%;border:1px solid #33322d;border-radius:6px;background:#111110;color:var(--text);padding:8px 10px;font-size:11px;outline:none;transition:border-color .2s}
+    .schema-search:focus{border-color:#b65c2d}
+    .schema-search::placeholder{color:#6b6a63}
+    .schema-list{padding:6px;max-height:340px;overflow:auto}
+    .table{padding:0;border-bottom:1px solid #232320}
+    .table:last-child{border-bottom:0}
+    .table-name{display:flex;align-items:center;gap:8px;font:500 11px 'DM Mono';color:#e3e0d7;padding:9px 10px;cursor:pointer;list-style:none;border-radius:5px;transition:background .15s}
+    .table-name:hover{background:#1d1d1a}
+    .table-name::-webkit-details-marker{display:none}
+    .table-name:after{content:'+';margin-left:5px;color:#77766f;font-size:12px;line-height:1}
+    .table[open] .table-name:after{content:'−'}
+    .table-name svg{width:13px;height:13px;stroke:var(--orange);fill:none;stroke-width:1.5;flex:none}
+    .table-count{margin-left:auto;font-size:9px;color:#77766f}
+    .columns{padding:0 10px 10px 31px;display:flex;flex-direction:column;gap:1px}
+    .col{display:flex;align-items:baseline;gap:6px;font:10px/1.7 'DM Mono';color:#939188}
+    .col-name{color:#b6b3aa}
+    .col-type{color:#6f6e67;font-size:9px;margin-left:auto;padding-left:8px}
+    .pk-tag{font-size:8px;color:#ffb27f;border:1px solid #4a3326;background:#241a14;padding:0 3px;border-radius:3px}
+    .schema-empty{padding:20px 12px;text-align:center;color:#7f7e77;font-size:11px}
+    .schema-foot{font-size:10px;color:#77766f;padding:10px 15px 12px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+
+    .runtime-body{padding:6px 16px 12px}
+    .runtime-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #222220;font-size:11px}
+    .runtime-row:last-child{border-bottom:0}
+    .runtime-row span{color:#8b8980;white-space:nowrap}
+    .runtime-row b{color:#d7d4cb;font-weight:500;text-align:right;overflow-wrap:anywhere;font-size:11px}
+    .runtime-row b.mono{font:10px 'DM Mono';color:#c5b9a5}
+    .runtime-foot{border-top:1px solid var(--line);padding:10px 16px;font:10px/1.6 'DM Mono';color:#7f7e77;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+
+    .note{display:flex;gap:11px;align-items:flex-start;padding:13px 15px;border:1px solid #453021;background:#201811;border-radius:8px;color:#b5a394;font-size:11px;line-height:1.6}
+    .note svg{width:15px;height:15px;flex:none;stroke:var(--orange);fill:none;stroke-width:1.7;margin-top:1px}
+    .note b{color:#e5c5aa;font-weight:600}
+
+    .eval-panel{margin-top:20px;padding:22px}
+    .eval-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+    .eval-kicker{font:500 10px 'DM Mono';letter-spacing:1.3px;color:var(--orange);text-transform:uppercase}
+    .eval-model{font:600 15px 'Space Grotesk';margin-top:7px}
+    .eval-date{font:10px 'DM Mono';color:var(--muted);border:1px solid var(--line);padding:6px 8px;border-radius:5px;white-space:nowrap}
+    .eval-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:19px}
+    .metric{padding:13px 14px;border:1px solid #2f2f2a;border-radius:8px;background:#141413}
+    .metric-label{font-size:10px;color:var(--muted)}
+    .metric-value{font:600 24px 'Space Grotesk';margin-top:6px;letter-spacing:-.7px}
+    .metric-value small{font:400 11px 'DM Mono';color:var(--muted);letter-spacing:0}
+    .metric-bar{height:3px;border-radius:2px;background:#262622;margin-top:9px;overflow:hidden}
+    .metric-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--orange),#ffb27f);border-radius:2px}
+    .eval-errors{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:13px;color:var(--muted);font-size:10px}
+    .error-tag{border:1px solid #553b2c;color:#ffb27f;background:#241a14;padding:5px 7px;border-radius:5px;font:10px 'DM Mono'}
+    .ok-tag{border:1px solid #29402d;color:#9fd3a4;background:#151e16;padding:5px 7px;border-radius:5px;font:10px 'DM Mono'}
+    .eval-method{margin-top:13px;padding-top:12px;border-top:1px solid var(--line);font-size:10px;line-height:1.6;color:#85847d}
+    .failure-details{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+    .failure-details summary{cursor:pointer;color:#d4d1c8;font-size:11px;width:fit-content}
+    .failure-details summary:hover{color:var(--orange-soft)}
+    .failure-item{margin-top:11px;padding:12px;border-radius:7px;background:#141413;border:1px solid #2f2f2a}
+    .failure-question{font-size:11px;color:#e4e1d8;margin-bottom:9px;line-height:1.5}
+    .failure-row{font:10px/1.6 'DM Mono';color:#aaa89f;overflow-wrap:anywhere;margin-top:6px}
+    .failure-row b{color:#ffb27f;font-weight:500}
+
+    .page-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:26px;padding-top:16px;border-top:1px solid var(--line-soft);font:10px 'DM Mono';color:#6f6e67}
+    .page-foot a{color:#8b8980;text-decoration:none;border-bottom:1px solid #33322d}
+    .page-foot a:hover{color:var(--orange-soft)}
+
+    dialog{width:min(460px,calc(100% - 32px));border:1px solid #3a3933;border-radius:12px;background:#171715;color:var(--text);padding:0;box-shadow:0 24px 80px #000a}
+    dialog::backdrop{background:#000a;backdrop-filter:blur(3px)}
+    .dialog-body{padding:22px}
+    .dialog-body h2{font:600 18px 'Space Grotesk';margin:0 0 8px}
+    .dialog-body p{color:var(--muted);font-size:12px;line-height:1.6;margin:0 0 17px}
+    .dialog-body label{display:block;color:#c5c3bc;font-size:11px;margin-bottom:8px}
+    .api-input{width:100%;border:1px solid #373630;border-radius:7px;background:#111110;color:var(--text);padding:11px 12px;outline:none;transition:border-color .2s}
+    .api-input:focus{border-color:#b65c2d}
+    .dialog-hint{font-size:10px;color:#77766f;margin-top:8px;line-height:1.5}
+    .dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:17px}
+    .dialog-actions .generate{padding:9px 13px}
+    .dialog-actions .small-btn{padding:9px 12px}
+
+    @media(max-width:1040px){
+      .shell{grid-template-columns:214px minmax(0,1fr)}
+      .workspace{grid-template-columns:minmax(0,1fr)}
+      .rail{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+      .schema-list{max-height:330px}
+    }
+    @media(max-width:720px){
+      .shell{display:block}
+      .shell > aside{display:none}
+      .topbar{height:58px;padding:0 18px}
+      .content{padding:36px 18px 50px}
+      .workspace{margin-top:26px}
+      .top-right{gap:9px}
+      .api-pill{font-size:0;padding:8px;gap:0}
+      .api-pill .status-text{display:none}
+      .intro{font-size:13px;line-height:1.6}
+      .hero-meta{gap:6px}
+      .key-hint{display:none}
+      .card-head{padding:14px 15px}
+      .query-body{padding:15px}
+      .rail{grid-template-columns:minmax(0,1fr)}
+      .eval-panel{padding:16px}
+      .eval-top{flex-direction:column;gap:10px}
+      .eval-metrics{grid-template-columns:1fr}
+      .result-head{align-items:flex-start}
+      .result-actions{width:100%}
+      .latency{margin-right:auto}
+      .sql{font-size:11px;padding:15px}
+      .submit-row{justify-content:flex-end}
+    }
+    @media(prefers-reduced-motion:reduce){
+      html{scroll-behavior:auto}
+      *,*::before,*::after{animation-duration:.001ms !important;transition-duration:.001ms !important}
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand"><div class="logo">L</div><div class="brand-name">ledger<span class="brand-sub">Finance SQL Studio</span></div></div>
+      <div class="nav-label">Workspace</div>
+      <a class="nav-item active" href="#composer"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/><circle cx="8" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="10" cy="19" r="1"/></svg>Query studio</a>
+      <a class="nav-item" href="#schemaCard"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Schema explorer</a>
+      <a class="nav-item" href="#evalPanel"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Model evaluation</a>
+      <div class="nav-label" style="margin-top:28px">Session</div>
+      <a class="nav-item" href="#historyCard"><svg viewBox="0 0 24 24"><path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>Query history</a>
+      <div class="sidebar-bottom">
+        <div class="connection">
+          <div class="connection-title">Inference service</div>
+          <div class="status"><i class="dot" id="sideDot"></i><span id="sideStatus">Checking connection</span></div>
+        </div>
+        <div class="side-foot">Built for better money questions.</div>
+      </div>
+    </aside>
+    <main>
+      <header class="topbar">
+        <div class="crumb">Workspace <span style="color:#555"> / </span> <b>Query studio</b></div>
+        <div class="top-right">
+          <button class="api-pill" id="apiSettings" title="Configure the inference API" aria-haspopup="dialog">
+            <i class="dot" id="topDot"></i><span class="status-text" id="topStatus">Checking API</span>
+          </button>
+          <div class="avatar" title="Finance workspace">F</div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="eyebrow">Natural language · SQL</div>
+        <h1>Ask your finances.</h1>
+        <p class="intro">Turn a question into a query. <span>Your data stays yours.</span></p>
+        <div class="hero-meta">
+          <span class="meta-pill"><i></i>TinyLlama 1.1B · QLoRA</span>
+          <span class="meta-pill">Gretel financial SQL</span>
+          <span class="meta-pill">SQLite · schema-guarded</span>
+        </div>
+
+        <div class="workspace">
+          <section class="stack" aria-label="Query workspace">
+            <div class="card" id="composer">
+              <div class="card-head"><div class="card-title"><span class="step">01</span>Describe what you want to know</div><div class="hint">Fine-tuned on finance SQL</div></div>
+              <div class="query-body">
+                <label class="field-label" for="question">Your question <span id="charCount">0 / 500</span></label>
+                <textarea class="question" id="question" maxlength="500" placeholder="e.g. How much did I spend on groceries last month?"></textarea>
+                <div class="examples"><div class="examples-label">Try asking</div><div class="chips">
+                  <button class="chip" data-question="How much did I spend on Food last month?">Food spending last month</button>
+                  <button class="chip" data-question="What is the total spending by category?">Spending by category</button>
+                  <button class="chip" data-question="Show my 5 largest transactions">Largest transactions</button>
+                  <button class="chip" data-question="If I buy the top 3 items in the top category, in 3 weeks which category will I spend the most on?">Top category in 3 weeks</button>
+                </div></div>
+                <div class="submit-row">
+                  <span class="key-hint">Press <span class="key">Ctrl</span> + <span class="key">Enter</span> to generate</span>
+                  <button class="generate" id="generate"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg>Generate SQL</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card result" id="result" aria-live="polite">
+              <div class="result-head">
+                <div class="result-head-left"><span class="result-label">GENERATED QUERY</span><span class="badge" id="sourceBadge" hidden></span></div>
+                <div class="result-actions">
+                  <span class="latency" id="latency"></span>
+                  <button class="small-btn" id="copyBtn">Copy</button>
+                  <button class="small-btn" id="downloadBtn">Download .sql</button>
+                </div>
+              </div>
+              <pre class="sql" id="sql"></pre>
+              <div class="result-meta" id="resultMeta"></div>
+              <div class="sql-status" id="sqlStatus"></div>
+            </div>
+
+            <div class="card history-card" id="historyCard">
+              <div class="card-head">
+                <div class="card-title"><span class="step">03</span>Recent questions <span class="count-pill" id="historyCount">0</span></div>
+                <button class="small-btn ghost" id="historyClear" type="button">Clear history</button>
+              </div>
+              <div class="history-list" id="historyList"></div>
+              <div class="schema-foot"><span id="historyFoot">Stored in this browser only</span><span id="sessionStat"></span></div>
+            </div>
+
+            <div class="note"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg><span><b>Review before you run.</b> Generated SQL is a starting point. Check the query and its filters before using it with financial data.</span></div>
+          </section>
+
+          <aside class="rail" aria-label="Schema and runtime">
+            <section class="card schema-card" id="schemaCard">
+              <div class="schema-head"><div class="card-title"><span class="step">02</span>Available data</div><span class="schema-badge" id="schemaBadge">SQLITE</span></div>
+              <div class="schema-search-wrap"><input class="schema-search" id="schemaSearch" type="search" placeholder="Filter tables &amp; columns…" aria-label="Filter schema tables and columns" autocomplete="off"></div>
+              <div class="schema-list" id="schemaList"><div class="table"><div class="table-name">Loading schema…</div></div></div>
+              <div class="schema-foot" id="schemaFoot"><span>Personal finance schema</span></div>
+            </section>
+
+            <section class="card runtime-card" id="runtimeCard">
+              <div class="card-head"><div class="card-title">Runtime</div><span class="badge" id="modelBadge">Checking</span></div>
+              <div class="runtime-body">
+                <div class="runtime-row"><span>Base model</span><b id="modelBase">—</b></div>
+                <div class="runtime-row"><span>Adapter</span><b class="mono" id="modelAdapter">—</b></div>
+                <div class="runtime-row"><span>Dataset</span><b id="modelDataset">—</b></div>
+                <div class="runtime-row"><span>Max new tokens</span><b class="mono" id="modelTokens">—</b></div>
+              </div>
+              <div class="runtime-foot"><span id="runtimeNote">Connect the API for live details</span><span id="runtimeLatency"></span></div>
+            </section>
+          </aside>
+        </div>
+
+        <section class="card eval-panel" id="evalPanel" aria-labelledby="evalHeading">
+          <div class="eval-top"><div><div class="eval-kicker" id="evalHeading">Model evaluation</div><div class="eval-model" id="evalModel">Loading evaluation…</div></div><div class="eval-date" id="evalDate"></div></div>
+          <div class="eval-metrics" id="evalMetrics"></div>
+          <div class="eval-errors" id="evalErrors"></div>
+          <div class="eval-method" id="evalMethod"></div>
+          <details class="failure-details" id="failureDetails"><summary id="failureSummary">Review failed examples</summary><div id="failureList"></div></details>
+        </section>
+
+        <div class="page-foot"><span>Ledger · finance text-to-sql · local-first</span><span>56.25% execution accuracy on held-out finance test split</span></div>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="apiDialog" aria-labelledby="apiDialogTitle">
+    <form class="dialog-body" id="apiForm">
+      <h2 id="apiDialogTitle">Connect your inference API</h2>
+      <p>The dashboard is served by the FastAPI app. Enter the public URL of a running Finance Text-to-SQL server to generate SQL from a hosted deployment.</p>
+      <label for="apiUrl">FastAPI base URL</label>
+      <input class="api-input" id="apiUrl" type="text" inputmode="url" placeholder="http://127.0.0.1:8000" autocomplete="url" spellcheck="false">
+      <div class="dialog-hint">Requests go directly from your browser to this URL. The API must allow cross-origin requests.</div>
+      <div class="dialog-actions"><button class="small-btn" type="button" id="clearApi">Clear</button><button class="generate" type="submit">Connect API</button></div>
+    </form>
+  </dialog>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const HISTORY_KEY = 'financeSqlHistory';
+    const MAX_HISTORY = 8;
+    const DEFAULT_SCHEMA = `CREATE TABLE users (user_id INT PRIMARY KEY, name TEXT, email TEXT, created_at DATE);
+CREATE TABLE accounts (account_id INT PRIMARY KEY, user_id INT, account_type TEXT, balance DECIMAL, currency TEXT);
+CREATE TABLE expenses (expense_id INT PRIMARY KEY, user_id INT, category TEXT, amount DECIMAL, date DATE, description TEXT);
+CREATE TABLE income (income_id INT PRIMARY KEY, user_id INT, source TEXT, amount DECIMAL, date DATE);
+CREATE TABLE budgets (budget_id INT PRIMARY KEY, user_id INT, category TEXT, monthly_limit DECIMAL, start_date DATE);
+CREATE TABLE transactions (txn_id INT PRIMARY KEY, account_id INT, txn_type TEXT, amount DECIMAL, date DATE, merchant TEXT);`;
+
+    const question = $('question');
+    const button = $('generate');
+    const result = $('result');
+    const sqlBox = $('sql');
+    const statusBox = $('sqlStatus');
+    const latencyBox = $('latency');
+    const charCount = $('charCount');
+    const apiDialog = $('apiDialog');
+    const sourceBadge = $('sourceBadge');
+    const resultMeta = $('resultMeta');
+    const historyList = $('historyList');
+
+    const servedLocally = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+    let apiBase = readStoredApi() || (servedLocally ? window.location.origin : '');
+    let history = readHistory();
+
+    function readStoredApi() {
+      try { return localStorage.getItem('financeSqlApi') || ''; } catch (_) { return ''; }
+    }
+    let lastEntry = null;
+    let schemaTables = [];
+    let filterTerm = '';
+
+    const apiUrl = path => `${apiBase.replace(/\/$/, '')}${path}`;
+
+    const SOURCE_STYLES = {
+      'model': ['MODEL', 'badge-model'],
+      'safe-fallback': ['SAFE FALLBACK', 'badge-fallback'],
+      'model-normalized': ['NORMALIZED', 'badge-normalized']
+    };
+    const sourceMeta = source => {
+      const [label, cls] = SOURCE_STYLES[source] || SOURCE_STYLES.model;
+      return { label, cls };
+    };
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[char]);
+    }
+
+    const SQL_KEYWORDS = new Set(('SELECT FROM WHERE GROUP BY ORDER HAVING LIMIT OFFSET JOIN INNER LEFT ' +
+      'RIGHT FULL OUTER CROSS ON AS AND OR NOT IN IS NULL LIKE GLOB BETWEEN CASE WHEN THEN ELSE END ' +
+      'DISTINCT UNION ALL INSERT UPDATE DELETE SET VALUES INTO CREATE TABLE WITH ASC DESC EXISTS PRIMARY ' +
+      'KEY FOREIGN REFERENCES DEFAULT TRUE FALSE INTERVAL').split(' '));
+
+    function highlightSql(sql) {
+      const pattern = /(--[^\n]*|\/\*[\s\S]*?\*\/)|('(?:[^']|'')*')|("(?:[^"]|"")*")|(\b\d+(?:\.\d+)?\b)|([A-Za-z_][A-Za-z0-9_$]*)(\s*\()?|([(),.;=<>!+\-*/%|])/g;
+      let output = '';
+      let lastIndex = 0;
+      let match;
+      while ((match = pattern.exec(sql)) !== null) {
+        output += escapeHtml(sql.slice(lastIndex, match.index));
+        if (match[1]) {
+          output += `<span class="tok-comment">${escapeHtml(match[1])}</span>`;
+        } else if (match[2]) {
+          output += `<span class="tok-string">${escapeHtml(match[2])}</span>`;
+        } else if (match[3]) {
+          output += `<span class="tok-ident">${escapeHtml(match[3])}</span>`;
+        } else if (match[4]) {
+          output += `<span class="tok-number">${escapeHtml(match[4])}</span>`;
+        } else if (match[5]) {
+          const word = match[5];
+          const call = match[6] ? escapeHtml(match[6]) : '';
+          if (SQL_KEYWORDS.has(word.toUpperCase())) {
+            output += `<span class="tok-keyword">${escapeHtml(word)}</span>${call}`;
+          } else if (match[6]) {
+            output += `<span class="tok-func">${escapeHtml(word)}</span>${call}`;
+          } else {
+            output += `<span class="tok-name">${escapeHtml(word)}</span>`;
+          }
+        } else {
+          output += `<span class="tok-punct">${escapeHtml(match[7])}</span>`;
+        }
+        lastIndex = match.index + match[0].length;
+      }
+      return output + escapeHtml(sql.slice(lastIndex));
+    }
+
+    function readHistory() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .filter(item => item && typeof item.question === 'string' && typeof item.sql === 'string')
+          .slice(0, MAX_HISTORY);
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function writeHistory() {
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_) {}
+    }
+
+    function formatWhen(timestamp) {
+      if (!timestamp) return '';
+      try {
+        return new Date(timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch (_) {
+        return '';
+      }
+    }
+
+    function updateSessionStat() {
+      const timed = history.filter(item => Number.isFinite(item.latencyMs));
+      const average = timed.length ? timed.reduce((sum, item) => sum + item.latencyMs, 0) / timed.length : null;
+      $('sessionStat').textContent = history.length
+        ? `${history.length} saved${average ? ` · avg ${(average / 1000).toFixed(2)}s` : ''}`
+        : '';
+      $('runtimeLatency').textContent = average ? `Avg ${(average / 1000).toFixed(1)}s` : '';
+    }
+
+    function renderHistory() {
+      $('historyCount').textContent = String(history.length);
+      $('historyClear').disabled = history.length === 0;
+      if (!history.length) {
+        historyList.innerHTML = '<div class="history-empty">Nothing yet. Ask a question to start your history.</div>';
+        updateSessionStat();
+        return;
+      }
+      historyList.innerHTML = history.map((item, index) => {
+        const meta = sourceMeta(item.source);
+        const when = formatWhen(item.at);
+        const latency = Number.isFinite(item.latencyMs) ? `<span class="lat">${(item.latencyMs / 1000).toFixed(2)}s</span>` : '';
+        return `<button class="history-item" type="button" data-index="${index}">` +
+          `<span class="history-q">${escapeHtml(item.question)}</span>` +
+          `<span class="history-meta"><span class="badge ${meta.cls}">${meta.label}</span>${latency}<span>${escapeHtml(when)}</span></span>` +
+          `</button>`;
+      }).join('');
+      historyList.querySelectorAll('.history-item').forEach(element => {
+        element.addEventListener('click', () => {
+          const item = history[Number(element.dataset.index)];
+          if (!item) return;
+          question.value = item.question;
+          question.dispatchEvent(new Event('input'));
+          showResult(item);
+          question.focus();
+          result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      });
+      updateSessionStat();
+    }
+
+    function pushHistory(entry) {
+      history = [entry, ...history.filter(item => item.question !== entry.question)].slice(0, MAX_HISTORY);
+      writeHistory();
+      renderHistory();
+    }
+
+    function setLatency(milliseconds, roundTripMs) {
+      if (!Number.isFinite(milliseconds)) {
+        latencyBox.textContent = '';
+        latencyBox.title = '';
+        return;
+      }
+      latencyBox.textContent = `Latency ${(milliseconds / 1000).toFixed(2)}s`;
+      latencyBox.title = Number.isFinite(roundTripMs)
+        ? `Server generation + validation: ${(milliseconds / 1000).toFixed(2)}s · round trip: ${(roundTripMs / 1000).toFixed(2)}s`
+        : `Server generation + validation: ${(milliseconds / 1000).toFixed(2)}s`;
+    }
+
+    function renderStatus(entry) {
+      statusBox.className = 'sql-status';
+      statusBox.textContent = '';
+      if (!entry) return;
+      if (entry.valid === false) {
+        statusBox.classList.add('show', 'bad');
+        statusBox.textContent = entry.warning || 'This SQL did not validate against the schema. Review it before running.';
+      } else if (entry.source === 'safe-fallback') {
+        statusBox.classList.add('show', 'ok');
+        statusBox.textContent = 'Schema-safe query generated for this demo.';
+      } else if (entry.warning) {
+        statusBox.classList.add('show', 'warn');
+        statusBox.textContent = entry.warning;
+      } else if (entry.source === 'model-normalized') {
+        statusBox.classList.add('show', 'ok');
+        statusBox.textContent = 'Validated after SQLite date normalization.';
+      } else {
+        statusBox.classList.add('show', 'ok');
+        statusBox.textContent = 'Validated against the schema.';
+      }
+    }
+
+    function renderResultMeta(entry) {
+      const parts = [
+        `<span>Status <b>${entry.valid === false ? 'needs review' : 'validated'}</b></span>`,
+        `<span>Source <b>${sourceMeta(entry.source).label.toLowerCase()}</b></span>`
+      ];
+      if (Number.isFinite(entry.roundTripMs)) {
+        parts.push(`<span>Round trip <b>${(entry.roundTripMs / 1000).toFixed(2)}s</b></span>`);
+      }
+      if (entry.validationError) {
+        parts.push(`<span>Model note <b>${escapeHtml(entry.validationError)}</b></span>`);
+      }
+      resultMeta.innerHTML = parts.join('');
+      resultMeta.classList.add('show');
+    }
+
+    function showResult(entry) {
+      lastEntry = entry;
+      result.classList.add('show');
+      const meta = sourceMeta(entry.source);
+      sourceBadge.hidden = false;
+      sourceBadge.className = `badge ${meta.cls}`;
+      sourceBadge.textContent = meta.label;
+      sqlBox.innerHTML = highlightSql(entry.sql || '-- No SQL was returned.');
+      setLatency(entry.latencyMs, entry.roundTripMs);
+      renderStatus(entry);
+      renderResultMeta(entry);
+    }
+
+    function showError(message) {
+      lastEntry = null;
+      result.classList.add('show');
+      sourceBadge.hidden = true;
+      sourceBadge.textContent = '';
+      latencyBox.textContent = '';
+      latencyBox.title = '';
+      resultMeta.classList.remove('show');
+      resultMeta.innerHTML = '';
+      statusBox.className = 'sql-status';
+      statusBox.textContent = '';
+      sqlBox.innerHTML = `<span class="error">${escapeHtml(message)}<br><br>Make sure the API is running and its model has loaded, then try again.</span>`;
+    }
+
+    async function copyText(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (_) {}
+      try {
+        const helper = document.createElement('textarea');
+        helper.value = text;
+        helper.setAttribute('readonly', '');
+        helper.style.position = 'fixed';
+        helper.style.opacity = '0';
+        document.body.appendChild(helper);
+        helper.select();
+        const copied = document.execCommand('copy');
+        helper.remove();
+        return copied;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function flashButton(target, label) {
+      if (!target.dataset.label) target.dataset.label = target.textContent;
+      target.textContent = label;
+      setTimeout(() => { target.textContent = target.dataset.label; }, 1400);
+    }
+
+    function slugify(text) {
+      return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+    }
+
+    function downloadSql() {
+      if (!lastEntry || !lastEntry.sql) return;
+      const header = '-- Ledger · Finance SQL Studio\n' +
+        `-- Question: ${lastEntry.question.replace(/\s+/g, ' ')}\n` +
+        `-- Generated: ${new Date().toISOString()}\n` +
+        `-- Source: ${sourceMeta(lastEntry.source).label.toLowerCase()} · valid: ${lastEntry.valid !== false}\n\n`;
+      const blob = new Blob([header + lastEntry.sql.trim() + '\n'], { type: 'application/sql;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${slugify(lastEntry.question) || 'finance-query'}.sql`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      flashButton($('downloadBtn'), 'Downloaded');
+    }
+
+    function splitTopLevel(body) {
+      const parts = [];
+      let depth = 0;
+      let quote = null;
+      let current = '';
+      for (const char of body) {
+        if (quote) {
+          current += char;
+          if (char === quote) quote = null;
+          continue;
+        }
+        if (char === "'" || char === '"' || char === '`') {
+          quote = char;
+          current += char;
+          continue;
+        }
+        if (char === '(') depth += 1;
+        if (char === ')') depth -= 1;
+        if (char === ',' && depth === 0) {
+          parts.push(current);
+          current = '';
+          continue;
+        }
+        current += char;
+      }
+      if (current.trim()) parts.push(current);
+      return parts;
+    }
+
+    function parseColumns(body) {
+      const columns = [];
+      for (const part of splitTopLevel(body)) {
+        const line = part.trim();
+        if (!line) continue;
+        if (/^(PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK|CONSTRAINT|KEY)\b/i.test(line)) continue;
+        const column = line.match(/^[`"[]?([A-Za-z_][A-Za-z0-9_]*)[`"\]]?\s+([A-Za-z]+(?:\s*\([^)]*\))?)/);
+        if (!column) continue;
+        columns.push({
+          name: column[1],
+          type: column[2].replace(/\s+/g, '').toUpperCase(),
+          pk: /\bPRIMARY\s+KEY\b/i.test(line)
+        });
+      }
+      return columns;
+    }
+
+    function parseSchema(raw) {
+      const tables = [];
+      const ddl = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"[]?([A-Za-z_][A-Za-z0-9_]*)[`"\]]?\s*\(([\s\S]*?)\)\s*;?/gi;
+      let match;
+      while ((match = ddl.exec(raw)) !== null) {
+        const columns = parseColumns(match[2]);
+        if (columns.length) tables.push({ name: match[1], columns });
+      }
+      if (!tables.length) {
+        const compact = /([A-Za-z_][A-Za-z0-9_]*)\s*\(([^()]*)\)/g;
+        while ((match = compact.exec(raw)) !== null) {
+          const columns = match[2].split(',').map(item => item.trim()).filter(Boolean)
+            .map(name => ({ name, type: '', pk: false }));
+          if (columns.length) tables.push({ name: match[1], columns });
+        }
+      }
+      return tables;
+    }
+
+    function paintSchema() {
+      const term = filterTerm.trim().toLowerCase();
+      const visible = schemaTables.map(table => {
+        const tableHit = table.name.toLowerCase().includes(term);
+        const columns = term && !tableHit
+          ? table.columns.filter(column => column.name.toLowerCase().includes(term) || column.type.toLowerCase().includes(term))
+          : table.columns;
+        return { table, columns, tableHit };
+      }).filter(entry => !term || entry.tableHit || entry.columns.length);
+
+      if (!visible.length) {
+        $('schemaList').innerHTML = `<div class="schema-empty">No tables or columns match “${escapeHtml(filterTerm)}”.</div>`;
+        updateSchemaFoot(0, 0);
+        return;
+      }
+
+      $('schemaList').innerHTML = visible.map(({ table, columns, tableHit }, index) => {
+        const shown = !term || tableHit ? table.columns : columns;
+        const columnHtml = shown.map(column =>
+          `<div class="col"><span class="col-name">${escapeHtml(column.name)}</span>` +
+          `${column.pk ? '<span class="pk-tag">PK</span>' : ''}` +
+          `<span class="col-type">${escapeHtml(column.type)}</span></div>`
+        ).join('');
+        const open = Boolean(term) || index === 0;
+        return `<details class="table"${open ? ' open' : ''}><summary class="table-name">` +
+          `<svg viewBox="0 0 16 16"><ellipse cx="8" cy="3.5" rx="5.5" ry="2"/><path d="M2.5 3.5v9c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2v-9M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/></svg>` +
+          `${escapeHtml(table.name)}<span class="table-count">${table.columns.length}</span></summary>` +
+          `<div class="columns">${columnHtml}</div></details>`;
+      }).join('');
+      const shownColumns = visible.reduce((total, entry) => total + (entry.tableHit || !term ? entry.table.columns.length : entry.columns.length), 0);
+      updateSchemaFoot(visible.length, shownColumns);
+    }
+
+    function updateSchemaFoot(tableCount, columnCount) {
+      const totalColumns = schemaTables.reduce((total, table) => total + table.columns.length, 0);
+      const summary = filterTerm
+        ? `${tableCount}/${schemaTables.length} tables · ${columnCount}/${totalColumns} cols`
+        : `${schemaTables.length} tables · ${totalColumns} columns`;
+      $('schemaFoot').innerHTML = `<span>${summary}</span><span>${filterTerm ? 'filtered' : 'finance'}</span>`;
+    }
+
+    function renderSchema(tables) {
+      schemaTables = tables;
+      $('schemaBadge').textContent = tables.length ? `${tables.length} TABLES` : 'SQLITE';
+      paintSchema();
+    }
+
+    async function loadSchema() {
+      let raw = DEFAULT_SCHEMA;
+      if (apiBase) {
+        try {
+          const response = await fetch(apiUrl('/schema'));
+          if (response.ok) {
+            const data = await response.json();
+            if (data && typeof data.schema === 'string' && data.schema.trim()) raw = data.schema;
+          }
+        } catch (_) {}
+      }
+      const tables = parseSchema(raw);
+      renderSchema(tables.length ? tables : parseSchema(DEFAULT_SCHEMA));
+    }
+
+    async function checkHealth() {
+      const sideDot = $('sideDot');
+      const topDot = $('topDot');
+      if (!apiBase) {
+        sideDot.className = 'dot';
+        topDot.className = 'dot';
+        $('sideStatus').textContent = 'API URL needed';
+        $('topStatus').textContent = 'Connect inference API';
+        setModelState(null, 'API URL needed');
+        return;
+      }
+      try {
+        const response = await fetch(apiUrl('/health'));
+        const health = await response.json().catch(() => null);
+        if (!response.ok || !health) throw new Error('Invalid health response');
+        const ready = health.status === 'healthy' && health.model_loaded;
+        sideDot.className = `dot ${ready ? 'up' : 'warn'}`;
+        topDot.className = `dot ${ready ? 'up' : 'warn'}`;
+        $('sideStatus').textContent = ready ? 'Model ready' : 'Model loading';
+        $('topStatus').textContent = ready ? 'API connected' : 'API connected · model offline';
+        setModelState(ready, ready ? 'Live' : 'Offline');
+      } catch (_) {
+        sideDot.className = 'dot';
+        topDot.className = 'dot';
+        $('sideStatus').textContent = 'API unavailable';
+        $('topStatus').textContent = 'API unavailable';
+        setModelState(false, 'Unavailable');
+      }
+    }
+
+    function setModelState(ready, label) {
+      const badge = $('modelBadge');
+      badge.textContent = label;
+      badge.className = 'badge ' + (ready === true ? 'badge-valid' : ready === false ? 'badge-invalid' : 'badge-model');
+      $('runtimeNote').textContent = ready === true
+        ? 'Connected · adapter loaded'
+        : ready === false
+          ? 'API reachable, model offline'
+          : 'Connect the API for live details';
+    }
+
+    function prettyModel(name) {
+      if (!name) return '';
+      const base = name.split('/').pop();
+      return base.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    async function loadRuntime() {
+      if (!apiBase) {
+        setModelState(null, 'API URL needed');
+        return;
+      }
+      try {
+        const [healthResponse, modelResponse] = await Promise.all([
+          fetch(apiUrl('/health')),
+          fetch(apiUrl('/model'))
+        ]);
+        const health = healthResponse.ok ? await healthResponse.json() : null;
+        const info = modelResponse.ok ? await modelResponse.json() : null;
+        if (!health && !info) throw new Error('Runtime unavailable');
+        if (info) {
+          $('modelBase').textContent = prettyModel(info.base_model) || '—';
+          $('modelAdapter').textContent = info.adapter || '—';
+          $('modelDataset').textContent = info.dataset || '—';
+          $('modelTokens').textContent = info.max_new_tokens != null ? String(info.max_new_tokens) : '—';
+        }
+        const ready = health ? health.status === 'healthy' && health.model_loaded : null;
+        setModelState(ready, ready === false ? 'Offline' : ready ? 'Live' : 'Connected');
+      } catch (_) {
+        setModelState(false, 'Unavailable');
+      }
+    }
+
+    async function generate() {
+      const text = question.value.trim();
+      if (!text) {
+        question.focus();
+        return;
+      }
+      if (!apiBase) {
+        showError('No inference API is connected. Choose the connection pill in the top bar and enter the URL of your FastAPI server.');
+        return;
+      }
+
+      button.disabled = true;
+      button.innerHTML = '<span class="loading"><i class="spinner"></i>Generating…</span>';
+      result.classList.add('show');
+      sourceBadge.hidden = true;
+      latencyBox.textContent = '';
+      latencyBox.title = '';
+      resultMeta.classList.remove('show');
+      resultMeta.innerHTML = '';
+      statusBox.className = 'sql-status';
+      statusBox.textContent = '';
+      sqlBox.textContent = 'Generating SQL…';
+      sqlBox.classList.add('pending');
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000);
+      const startedAt = performance.now();
+
+      try {
+        const response = await fetch(apiUrl('/generate-sql'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: text }),
+          signal: controller.signal
+        });
+        const raw = await response.text();
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (_) {
+          throw new Error(`API returned a non-JSON response (HTTP ${response.status}). Check that the URL points to the FastAPI server, not the frontend.`);
+        }
+        if (!response.ok) throw new Error(data.detail || `The query could not be generated (HTTP ${response.status}).`);
+
+        const roundTripMs = performance.now() - startedAt;
+        const serverLatencyMs = data.latency_ms == null ? NaN : Number(data.latency_ms);
+        const displayLatencyMs = Number.isFinite(serverLatencyMs) ? serverLatencyMs : roundTripMs;
+        const entry = {
+          question: text,
+          sql: data.sql || '-- No SQL was returned.',
+          source: data.source || 'model',
+          valid: data.valid !== false,
+          warning: data.warning || null,
+          validationError: data.validation_error || null,
+          latencyMs: Number.isFinite(displayLatencyMs) ? displayLatencyMs : null,
+          roundTripMs,
+          at: Date.now()
+        };
+        showResult(entry);
+        pushHistory(entry);
+      } catch (error) {
+        const message = error.name === 'AbortError'
+          ? 'The request timed out after 120 seconds. The model may still be loading.'
+          : error.message;
+        showError(message);
+      } finally {
+        clearTimeout(timeout);
+        sqlBox.classList.remove('pending');
+        button.disabled = false;
+        button.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg>Generate SQL';
+      }
+    }
+
+    async function loadEvaluation() {
+      try {
+        const candidates = apiBase ? [apiUrl('/evaluation.json'), '/evaluation.json'] : ['/evaluation.json'];
+        let response = null;
+        for (const url of candidates) {
+          try {
+            const candidate = await fetch(url);
+            if (candidate.ok) {
+              response = candidate;
+              break;
+            }
+          } catch (_) {}
+        }
+        if (!response) throw new Error('Evaluation report is unavailable');
+        const report = await response.json();
+        $('evalModel').textContent = report.model;
+        $('evalDate').textContent = `Evaluated ${report.evaluated_at}`;
+        const totalSamples = report.total_test_samples || report.test_samples;
+        const evaluatedSamples = report.test_samples;
+        const goldErrors = report.gold_execution_errors || 0;
+        const percent = value => `${(value * 100).toFixed(1)}%`;
+
+        $('evalMetrics').innerHTML = [
+          ['Execution accuracy', report.execution_accuracy, `${report.execution_correct}/${evaluatedSamples}`, true],
+          ['Exact SQL match', report.exact_match_accuracy, `${report.exact_match_correct}/${totalSamples}`, true],
+          ['Held-out examples', null, `${totalSamples} samples`, false]
+        ].map(([label, value, count, showBar]) => `<div class="metric">` +
+          `<div class="metric-label">${label}</div>` +
+          `<div class="metric-value">${value === null ? totalSamples : percent(value)} <small>${value === null ? 'samples' : count}</small></div>` +
+          `${showBar ? `<div class="metric-bar"><i style="width:${Math.max(2, Math.min(100, value * 100))}%"></i></div>` : ''}` +
+          `</div>`).join('');
+
+        const errors = report.error_breakdown || {};
+        const tag = (label, count) => `<span class="${count ? 'error-tag' : 'ok-tag'}">${label} ${count || 0}</span>`;
+        $('evalErrors').innerHTML = [
+          '<span>Error breakdown</span>',
+          tag('Logic errors', errors.logic_error),
+          tag('Syntax', errors.syntax_error),
+          tag('Column hallucinations', errors.column_hallucination),
+          tag('Table hallucinations', errors.table_hallucination),
+          tag('Execution', errors.execution_error),
+          tag('Gold execution', goldErrors)
+        ].join('');
+        $('evalMethod').textContent = `${report.method} ${totalSamples} held-out examples; ${goldErrors} reference queries were not executable in SQLite and were excluded from the accuracy denominator.`;
+
+        const failures = report.failure_examples || [];
+        $('failureSummary').textContent = `Review ${failures.length} failed example${failures.length === 1 ? '' : 's'}`;
+        $('failureList').innerHTML = failures.map(item =>
+          `<div class="failure-item"><div class="failure-question">${escapeHtml(item.question)}</div>` +
+          `<div class="failure-row"><b>Generated</b> ${escapeHtml(item.predicted)}</div>` +
+          `<div class="failure-row"><b>Expected</b> ${escapeHtml(item.expected)}</div></div>`
+        ).join('');
+        $('failureDetails').hidden = failures.length === 0;
+      } catch (_) {
+        $('evalModel').textContent = 'Evaluation report unavailable';
+        $('evalMetrics').textContent = 'Could not load evaluation.json.';
+        $('failureDetails').hidden = true;
+      }
+    }
+
+    function normalizeBase(value) {
+      let base = value.trim().replace(/\/+$/, '');
+      if (base && !/^https?:\/\//i.test(base)) base = `http://${base}`;
+      return base;
+    }
+
+    function refreshAll() {
+      checkHealth();
+      loadSchema();
+      loadRuntime();
+      loadEvaluation();
+    }
+
+    question.addEventListener('input', () => {
+      charCount.textContent = `${question.value.length} / 500`;
+    });
+
+    document.querySelectorAll('.chip').forEach(chip => chip.addEventListener('click', () => {
+      question.value = chip.dataset.question;
+      question.dispatchEvent(new Event('input'));
+      question.focus();
+    }));
+
+    document.addEventListener('keydown', event => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        generate();
+      }
+    });
+
+    $('schemaSearch').addEventListener('input', event => {
+      filterTerm = event.target.value;
+      paintSchema();
+    });
+
+    button.addEventListener('click', generate);
+
+    $('copyBtn').addEventListener('click', async () => {
+      const text = lastEntry ? lastEntry.sql : sqlBox.textContent;
+      if (!text) return;
+      const copied = await copyText(text);
+      if (copied) flashButton($('copyBtn'), 'Copied');
+    });
+
+    $('downloadBtn').addEventListener('click', downloadSql);
+
+    $('historyClear').addEventListener('click', () => {
+      history = [];
+      writeHistory();
+      renderHistory();
+    });
+
+    $('apiSettings').addEventListener('click', () => {
+      $('apiUrl').value = apiBase;
+      apiDialog.showModal();
+      $('apiUrl').focus();
+    });
+
+    $('apiForm').addEventListener('submit', event => {
+      event.preventDefault();
+      apiBase = normalizeBase($('apiUrl').value);
+      if (apiBase) {
+        try { localStorage.setItem('financeSqlApi', apiBase); } catch (_) {}
+      } else {
+        try { localStorage.removeItem('financeSqlApi'); } catch (_) {}
+      }
+      apiDialog.close();
+      refreshAll();
+    });
+
+    $('clearApi').addEventListener('click', () => {
+      apiBase = '';
+      try { localStorage.removeItem('financeSqlApi'); } catch (_) {}
+      apiDialog.close();
+      refreshAll();
+    });
+
+    apiDialog.addEventListener('click', event => {
+      if (event.target === apiDialog) apiDialog.close();
+    });
+
+    renderHistory();
+    refreshAll();
+  </script>
+</body>
+</html>

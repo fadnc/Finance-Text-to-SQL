@@ -22,10 +22,13 @@ def load_model(model_name: str, use_4bit: bool = True):
     
     if use_4bit and cuda_available and bnb_available:
         print("Loading model with 4-bit quantization...")
+        compute_dtype = (
+            torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        )
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_compute_dtype=compute_dtype,
         )
 
         model = AutoModelForCausalLM.from_pretrained(

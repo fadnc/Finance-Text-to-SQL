@@ -1,28 +1,21 @@
 import torch
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from src.utils.prompting import build_prompt, extract_sql
 
-def generate_sql(model, tokenizer, question, schema):
-    prompt = f"""<|user|>
-Write a SQL query for the following question
 
-Question: {question}
-Schema: {schema}
-<|assistant|>"""
-
+def generate_sql(model, tokenizer, question, schema, max_new_tokens=256):
+    """Generate SQL from a question and schema using the trained adapter."""
+    device = next(model.parameters()).device
+    prompt = build_prompt(question, schema)
     inputs = tokenizer(prompt, return_tensors="pt").to(device)
-    
+
     with torch.no_grad():
         output = model.generate(
             **inputs,
-            max_new_tokens=150,
-            temperature=0.2,
-            pad_token_id=tokenizer.eos_token_id,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+            pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
         )
-    
-    # Extract only the generated SQL after the prompt
-    generated = tokenizer.decode(output[0], skip_special_tokens=True)
-    if "<|assistant|>" in generated:
-        generated = generated.split("<|assistant|>")[-1].strip()
-    
-    return generated
+
+    new_tokens = output[0, inputs["input_ids"].shape[-1]:]
+    return extract_sql(tokenizer.decode(new_tokens, skip_special_tokens=True))

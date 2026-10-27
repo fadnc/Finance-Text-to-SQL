@@ -123,13 +123,18 @@ class EvalLogger:
             "error_type": error_type
         })
     
-    def log_summary(self, exec_accuracy: float, exact_accuracy: float, 
-                    error_breakdown: dict):
+    def log_summary(self, exec_accuracy: float, exact_accuracy: float,
+                    error_breakdown: dict, evaluated_samples: int = None,
+                    gold_execution_errors: int = None):
         """Log evaluation summary."""
         self.logger.info("=" * 50)
         self.logger.info("EVALUATION SUMMARY")
         self.logger.info("=" * 50)
         self.logger.info(f"Execution Accuracy: {exec_accuracy:.2%}")
+        if evaluated_samples is not None:
+            self.logger.info(f"Evaluated samples: {evaluated_samples}")
+        if gold_execution_errors is not None:
+            self.logger.info(f"Gold execution errors: {gold_execution_errors}")
         self.logger.info(f"Exact Match Accuracy: {exact_accuracy:.2%}")
         self.logger.info("Error Breakdown:")
         for error_type, count in error_breakdown.items():
