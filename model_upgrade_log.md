@@ -8,7 +8,7 @@
 |---|---|
 | Dataset | `gretelai/synthetic_text_to_sql` (finance) + Spider + WikiSQL |
 | Base model | `Qwen/Qwen2.5-Coder-1.5B-Instruct` |
-| Adapter | `models/qwen2.5-coder-1.5b-wikisql-sql` |
+| Adapter | `models/qwen2.5-coder-1.5b-finance-sql-lora` |
 | Previous base model | `TinyLlama/TinyLlama-1.1B-Chat-v1.0` |
 | Tuning method | 4-bit QLoRA, rank 16, `all-linear` |
 | Training steps | 2,781 (1 epoch over 11,435 examples) |
@@ -789,7 +789,7 @@ remain the only measured results and stay as the comparison baseline.
 | Item | Before | After |
 |---|---|---|
 | Base model | `TinyLlama/TinyLlama-1.1B-Chat-v1.0` | `Qwen/Qwen2.5-Coder-1.5B-Instruct` |
-| Adapter output | `models/tinyllama-multidataset-sql` | `models/qwen2.5-coder-1.5b-wikisql-sql` |
+| Adapter output | `models/tinyllama-multidataset-sql` | `models/qwen2.5-coder-1.5b-finance-sql-lora` |
 | Prompt layout | hardcoded `<|user|>` / `<|assistant|>` | tokenizer `apply_chat_template` (ChatML) |
 | LoRA targets | `q_proj`, `v_proj` | `all-linear` (architecture-agnostic) |
 | Attention | default | `sdpa` |

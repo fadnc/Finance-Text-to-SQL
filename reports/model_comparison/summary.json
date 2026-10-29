@@ -41,7 +41,7 @@
       },
       {
         "label": "Qwen2.5-Coder + WikiSQL/Spider/Finance",
-        "path": "D:\\PRJKT\\py\\Finance-Text-to-SQL\\models\\qwen2.5-coder-1.5b-wikisql-sql",
+        "path": "D:\\PRJKT\\py\\Finance-Text-to-SQL\\models\\qwen2.5-coder-1.5b-finance-sql-lora",
         "sha256": "505dd245f6a260dae1f27ab56e923c31635003e6188e45cd3d71022301da4ed0"
       }
     ]

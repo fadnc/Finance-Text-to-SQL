@@ -7,7 +7,7 @@ and the LoRA adapter, serves the SQL Studio dashboard, and answers
 - Model configuration: `configs/training_config.yaml` (`model_name`, `output_dir`)
 - Server: `api/main.py`
 - Launcher: `scripts/start_api.cmd`
-- Adapter: `models/qwen2.5-coder-1.5b-wikisql-sql`
+- Adapter: `models/qwen2.5-coder-1.5b-finance-sql-lora`
 
 ## 1. Prerequisites
 
@@ -57,7 +57,7 @@ On startup the server:
 
 1. Reads `configs/training_config.yaml`.
 2. Loads `Qwen/Qwen2.5-Coder-1.5B-Instruct` (downloaded to `.hf_cache/` on first use).
-3. Applies the LoRA adapter from `models/qwen2.5-coder-1.5b-wikisql-sql`.
+3. Applies the LoRA adapter from `models/qwen2.5-coder-1.5b-finance-sql-lora`.
 4. Sets the pad token and puts the model in evaluation mode.
 
 Loading can take 30-120 seconds the first time; wait for
@@ -88,7 +88,7 @@ Expected health shape:
   "status": "healthy",
   "model_loaded": true,
   "base_model": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
-  "adapter": "models/qwen2.5-coder-1.5b-wikisql-sql",
+  "adapter": "models/qwen2.5-coder-1.5b-finance-sql-lora",
   "dataset": "gretelai/synthetic_text_to_sql"
 }
 ```
@@ -153,7 +153,7 @@ Only kill the PID you confirmed is the Uvicorn process.
 | `Address already in use` | Another server owns port 8000; stop it or run `scripts\start_api.cmd 127.0.0.1 8001` |
 | Browser shows `API unavailable` | Confirm `/health` returns 200 and the page's API URL has no typo or trailing slash |
 | Vercel page cannot reach localhost | Allow the local-network prompt; confirm the API is running; use `?api=http://127.0.0.1:8000` |
-| Startup fails on `PeftModel.from_pretrained` | The adapter directory is missing or incomplete; retrain or restore `models/qwen2.5-coder-1.5b-wikisql-sql` |
+| Startup fails on `PeftModel.from_pretrained` | The adapter directory is missing or incomplete; retrain or restore `models/qwen2.5-coder-1.5b-finance-sql-lora` |
 | CUDA or bitsandbytes error | Install a CUDA-enabled PyTorch build; 4-bit loading needs CUDA compute capability 7.0+ |
 | Very slow generation | A 1.5B model on a 4 GB laptop GPU is expected to take seconds per query; the first call also warms CUDA |
 | `/generate-sql` returns a fallback | The model SQL failed schema validation; the response's `validation_error` explains why |

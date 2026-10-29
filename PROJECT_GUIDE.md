@@ -696,7 +696,7 @@ Sketch:
 .venv\Scripts\hf.exe repo create <your-user>/qwen2.5-coder-1.5b-finance-sql-lora --repo-type model --private
 
 .venv\Scripts\hf.exe upload <your-user>/qwen2.5-coder-1.5b-finance-sql-lora `
-  models\qwen2.5-coder-1.5b-wikisql-sql . `
+  models\qwen2.5-coder-1.5b-finance-sql-lora . `
   --repo-type model `
   --exclude "checkpoint-2781/*" --exclude "training_args.bin"
 ```
@@ -708,9 +708,17 @@ base = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-Coder-1.5B-Instruct")
 model = PeftModel.from_pretrained(base, "<your-user>/qwen2.5-coder-1.5b-finance-sql-lora")
 ```
 
+Published copy (public):
+https://huggingface.co/ncfad/qwen2.5-coder-1.5b-finance-sql-lora — adapter
+weights, tokenizer, chat template, and card; `checkpoint-2781/` and
+`training_args.bin` are excluded.
+
 Model-card essentials: base model and revision, adapter type/rank, datasets
 (Gretel finance, Spider, WikiSQL), training hyperparameters, held-out metrics
 with the 48-example denominator, intended use, limitations, and licenses. The
+card's YAML `datasets` list can only carry Hub dataset IDs, so it names Gretel
+and Spider; WikiSQL was fetched from the pinned Salesforce GitHub tarball and is
+documented in the card body and tags instead. The
 base model is Apache-2.0; Gretel is Apache-2.0; Spider is CC-BY-SA-4.0; WikiSQL
 is Wikipedia-derived. Because the adapter was trained on CC-BY-SA data, review
 license compatibility before publishing; state the licenses explicitly in the

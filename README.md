@@ -221,7 +221,7 @@ Edit `configs/training_config.yaml`:
 
 ```yaml
 model_name: Qwen/Qwen2.5-Coder-1.5B-Instruct
-output_dir: models/qwen2.5-coder-1.5b-wikisql-sql
+output_dir: models/qwen2.5-coder-1.5b-finance-sql-lora
 
 dataset:
   name: gretelai/synthetic_text_to_sql
@@ -360,6 +360,9 @@ ChatML prompt, so they are directly comparable. Full artifacts:
 | Qwen2.5-Coder 1.5B base | 12.5% | 62.5% | 52.1% | 0.476 | 3,032 ms |
 | **Qwen2.5-Coder + WikiSQL/Spider/Finance** | **22.2%** | **68.1%** | 56.2% | **0.235** | 5,433 ms |
 
+The Qwen adapter is published on the Hugging Face Hub:
+[`ncfad/qwen2.5-coder-1.5b-finance-sql-lora`](https://huggingface.co/ncfad/qwen2.5-coder-1.5b-finance-sql-lora).
+
 The Qwen adapter posts the best exact match (22.2%) and held-out loss (0.235),
 and it adds +4.2 execution points over its base. Its 68.1% valid-SQL rate is
 below the TinyLlama finance adapter (73.6%) and the TinyLlama base (79.2%), and
@@ -400,7 +403,7 @@ from src.utils.model_loader import load_model
 from peft import PeftModel
 
 model, tokenizer = load_model("Qwen/Qwen2.5-Coder-1.5B-Instruct")
-model = PeftModel.from_pretrained(model, "models/qwen2.5-coder-1.5b-wikisql-sql")
+model = PeftModel.from_pretrained(model, "models/qwen2.5-coder-1.5b-finance-sql-lora")
 
 sql = generate_sql(
     model,

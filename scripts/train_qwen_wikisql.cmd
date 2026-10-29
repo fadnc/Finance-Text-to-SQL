@@ -20,7 +20,7 @@ echo. >> logs\train_qwen_wikisql.log
 echo ==== training start %DATE% %TIME% ==== >> logs\train_qwen_wikisql.log
 
 ".venv\Scripts\python.exe" -m src.training.train ^
-  --output-dir models\qwen2.5-coder-1.5b-wikisql-sql %* >> logs\train_qwen_wikisql.log 2>&1
+  --output-dir models\qwen2.5-coder-1.5b-finance-sql-lora %* >> logs\train_qwen_wikisql.log 2>&1
 
 echo EXITCODE=%ERRORLEVEL% >> logs\train_qwen_wikisql.log
 endlocal

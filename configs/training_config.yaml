@@ -2,8 +2,8 @@
 # The earlier TinyLlama baseline is kept in models/tinyllama-gretel-finance-sql
 # for comparison; this run uses a 1.5B code model that still fits 4 GB VRAM.
 model_name: Qwen/Qwen2.5-Coder-1.5B-Instruct
-output_dir: models/qwen2.5-coder-1.5b-wikisql-sql
-training_output_dir: models/qwen2.5-coder-1.5b-wikisql-sql-candidate
+output_dir: models/qwen2.5-coder-1.5b-finance-sql-lora
+training_output_dir: models/qwen2.5-coder-1.5b-finance-sql-lora-candidate
 
 # Dataset Configuration
 # Source: https://huggingface.co/datasets/gretelai/synthetic_text_to_sql

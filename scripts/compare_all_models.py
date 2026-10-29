@@ -65,7 +65,7 @@ FAMILIES = [
         [
             (
                 "Qwen2.5-Coder + WikiSQL/Spider/Finance",
-                "models/qwen2.5-coder-1.5b-wikisql-sql",
+                "models/qwen2.5-coder-1.5b-finance-sql-lora",
             ),
         ],
     ),
