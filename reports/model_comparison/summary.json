@@ -1,0 +1,624 @@
+{
+  "metadata": {
+    "timestamp_utc": "2026-10-29T05:58:21.465366+00:00",
+    "dataset": "data/processed/gretel_finance_test.json",
+    "dataset_sha256": "639355601bb40da0a648bc2231e8876afc77f0c5c6e8d4dd555b0f8165247fc8",
+    "examples": 72,
+    "max_new_tokens": 256,
+    "do_sample": false,
+    "max_loss_sequence_length": 512,
+    "hardware": {
+      "platform": "Windows-11-10.0.26200-SP0",
+      "python": "3.12.10",
+      "torch": "2.10.0+cu128",
+      "cuda": "NVIDIA GeForce RTX 3050 Laptop GPU"
+    },
+    "adapters": [
+      {
+        "label": "TinyLlama + Gretel finance",
+        "path": "D:\\PRJKT\\py\\Finance-Text-to-SQL\\models\\tinyllama-gretel-finance-sql",
+        "sha256": "ba3b2e0a62e93ccdbcf468b6988345efb8fb2eaf07d482487fa826a0d422a16c"
+      },
+      {
+        "label": "TinyLlama + multi-dataset",
+        "path": "D:\\PRJKT\\py\\Finance-Text-to-SQL\\models\\tinyllama-multidataset-sql",
+        "sha256": "dbe485cda9301bb944269b4bbd0b3156a3e13a2c12b023736e0d9698b78c3185"
+      },
+      {
+        "label": "TinyLlama + multi-dataset (candidate)",
+        "path": "D:\\PRJKT\\py\\Finance-Text-to-SQL\\models\\tinyllama-multidataset-sql-candidate",
+        "sha256": "c91a1163d48661db197971daa61f71540c078b1eb714d77b5ab7842353c61a01"
+      },
+      {
+        "label": "TinyLlama + multi-dataset + Spider (ckpt359)",
+        "path": "D:\\PRJKT\\py\\Finance-Text-to-SQL\\models\\tinyllama-multidataset-sql-candidate-spider\\checkpoint-359",
+        "sha256": "de100c6c2e3afc220aca4c400f9ff868bbce4fb74a0de563d2e0ca57d9092e2c"
+      },
+      {
+        "label": "phi3-sql (TinyLlama adapter)",
+        "path": "D:\\PRJKT\\py\\Finance-Text-to-SQL\\models\\phi3-sql",
+        "sha256": "15967aa6205facbb869bf988f16a847b13e581ff47ae4f9fd49bb08557c00131"
+      },
+      {
+        "label": "Qwen2.5-Coder + WikiSQL/Spider/Finance",
+        "path": "D:\\PRJKT\\py\\Finance-Text-to-SQL\\models\\qwen2.5-coder-1.5b-wikisql-sql",
+        "sha256": "505dd245f6a260dae1f27ab56e923c31635003e6188e45cd3d71022301da4ed0"
+      }
+    ]
+  },
+  "models": [
+    {
+      "model": "tinyllama base",
+      "exact_match_accuracy": 0.013888888888888888,
+      "valid_sql_rate": 0.7916666666666666,
+      "execution_accuracy": 0.4375,
+      "execution_examples": 48,
+      "valid_sql_error_breakdown": {
+        "reference_syntax_error": 2,
+        "reference_other_database_error": 4,
+        "syntax_error": 2,
+        "reference_missing_table": 1,
+        "other_database_error": 2,
+        "missing_column": 3,
+        "reference_missing_column": 1
+      },
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 23578.61705694429,
+        "p50_ms": 21847.02329999891,
+        "p95_ms": 47418.309005000105,
+        "p99_ms": 55225.00765900044
+      },
+      "mean_tokens_per_second": 4.593590567838559,
+      "test_loss": 0.7242671751965286,
+      "perplexity": 2.0632185680820627,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 1.0,
+          "execution_accuracy": null
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.0,
+          "valid_sql": 0.7,
+          "execution_accuracy": 0.0
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.023255813953488372,
+          "valid_sql": 0.9302325581395349,
+          "execution_accuracy": 0.6071428571428571
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 1.0,
+          "execution_accuracy": 1.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.0,
+          "valid_sql": 0.4444444444444444,
+          "execution_accuracy": 0.2857142857142857
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.5,
+          "execution_accuracy": 0.0
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.0,
+          "valid_sql": 0.4,
+          "execution_accuracy": 0.3333333333333333
+        }
+      }
+    },
+    {
+      "model": "TinyLlama + Gretel finance",
+      "exact_match_accuracy": 0.18055555555555555,
+      "valid_sql_rate": 0.7361111111111112,
+      "execution_accuracy": 0.5625,
+      "execution_examples": 48,
+      "valid_sql_error_breakdown": {
+        "missing_column": 5,
+        "reference_other_database_error": 8,
+        "missing_table": 1,
+        "reference_missing_table": 1,
+        "reference_syntax_error": 3,
+        "other_database_error": 1
+      },
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 9535.068724999646,
+        "p50_ms": 9164.626149999094,
+        "p95_ms": 19883.78625499954,
+        "p99_ms": 22273.57098499841
+      },
+      "mean_tokens_per_second": 4.774882851494165,
+      "test_loss": 0.48179003223553346,
+      "perplexity": 1.6189698181386503,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": null
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.1,
+          "valid_sql": 1.0,
+          "execution_accuracy": 0.5
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.27906976744186046,
+          "valid_sql": 0.7441860465116279,
+          "execution_accuracy": 0.6785714285714286
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": 0.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.0,
+          "valid_sql": 0.8888888888888888,
+          "execution_accuracy": 0.5714285714285714
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.5,
+          "execution_accuracy": 0.0
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.0,
+          "valid_sql": 0.4,
+          "execution_accuracy": 0.0
+        }
+      }
+    },
+    {
+      "model": "TinyLlama + multi-dataset",
+      "exact_match_accuracy": 0.18055555555555555,
+      "valid_sql_rate": 0.6527777777777778,
+      "execution_accuracy": 0.5416666666666666,
+      "execution_examples": 48,
+      "valid_sql_error_breakdown": {
+        "missing_column": 8,
+        "reference_syntax_error": 5,
+        "reference_other_database_error": 9,
+        "reference_missing_table": 1,
+        "other_database_error": 1,
+        "reference_missing_column": 1
+      },
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 4038.7102652776375,
+        "p50_ms": 3192.2638499981986,
+        "p95_ms": 7944.780519999768,
+        "p99_ms": 14711.904727001061
+      },
+      "mean_tokens_per_second": 10.733956650971106,
+      "test_loss": 0.4869429391787019,
+      "perplexity": 1.627333749729001,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": null
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.0,
+          "valid_sql": 0.8,
+          "execution_accuracy": 0.125
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.3023255813953488,
+          "valid_sql": 0.7674418604651163,
+          "execution_accuracy": 0.7857142857142857
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": 0.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.0,
+          "valid_sql": 0.4444444444444444,
+          "execution_accuracy": 0.42857142857142855
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": 0.0
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.0,
+          "valid_sql": 0.4,
+          "execution_accuracy": 0.0
+        }
+      }
+    },
+    {
+      "model": "TinyLlama + multi-dataset (candidate)",
+      "exact_match_accuracy": 0.1527777777777778,
+      "valid_sql_rate": 0.6666666666666666,
+      "execution_accuracy": 0.5833333333333334,
+      "execution_examples": 48,
+      "valid_sql_error_breakdown": {
+        "missing_column": 4,
+        "reference_syntax_error": 4,
+        "reference_other_database_error": 9,
+        "syntax_error": 3,
+        "reference_missing_table": 1,
+        "other_database_error": 2,
+        "reference_missing_column": 1
+      },
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 4488.412780555639,
+        "p50_ms": 3377.362549999816,
+        "p95_ms": 8407.946475000062,
+        "p99_ms": 23798.914879000702
+      },
+      "mean_tokens_per_second": 10.809574750823586,
+      "test_loss": 0.4489778078596393,
+      "perplexity": 1.5667098881679105,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": null
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.1,
+          "valid_sql": 1.0,
+          "execution_accuracy": 0.5
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.23255813953488372,
+          "valid_sql": 0.7209302325581395,
+          "execution_accuracy": 0.75
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": 0.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.0,
+          "valid_sql": 0.4444444444444444,
+          "execution_accuracy": 0.2857142857142857
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.5,
+          "execution_accuracy": 0.0
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.0,
+          "valid_sql": 0.4,
+          "execution_accuracy": 0.3333333333333333
+        }
+      }
+    },
+    {
+      "model": "TinyLlama + multi-dataset + Spider (ckpt359)",
+      "exact_match_accuracy": 0.16666666666666666,
+      "valid_sql_rate": 0.6388888888888888,
+      "execution_accuracy": 0.5416666666666666,
+      "execution_examples": 48,
+      "valid_sql_error_breakdown": {
+        "missing_table": 1,
+        "missing_column": 6,
+        "reference_other_database_error": 9,
+        "syntax_error": 2,
+        "reference_syntax_error": 4,
+        "reference_missing_table": 1,
+        "reference_missing_column": 1,
+        "other_database_error": 2
+      },
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 4849.048065277809,
+        "p50_ms": 3356.548499998098,
+        "p95_ms": 15555.420379998983,
+        "p99_ms": 24045.30292199921
+      },
+      "mean_tokens_per_second": 10.697074935249285,
+      "test_loss": 0.46007627234014836,
+      "perplexity": 1.584194810632054,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": null
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.1,
+          "valid_sql": 0.8,
+          "execution_accuracy": 0.375
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.2558139534883721,
+          "valid_sql": 0.6976744186046512,
+          "execution_accuracy": 0.6785714285714286
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": 0.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.0,
+          "valid_sql": 0.5555555555555556,
+          "execution_accuracy": 0.42857142857142855
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.5,
+          "execution_accuracy": 0.0
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.0,
+          "valid_sql": 0.4,
+          "execution_accuracy": 0.3333333333333333
+        }
+      }
+    },
+    {
+      "model": "phi3-sql (TinyLlama adapter)",
+      "exact_match_accuracy": 0.041666666666666664,
+      "valid_sql_rate": 0.3194444444444444,
+      "execution_accuracy": 0.22916666666666666,
+      "execution_examples": 48,
+      "valid_sql_error_breakdown": {
+        "missing_table": 29,
+        "missing_column": 1,
+        "reference_syntax_error": 5,
+        "reference_other_database_error": 11,
+        "reference_missing_table": 1,
+        "reference_missing_column": 2
+      },
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 3208.020315277635,
+        "p50_ms": 2743.223550001858,
+        "p95_ms": 7096.589314998528,
+        "p99_ms": 9207.784021998823
+      },
+      "mean_tokens_per_second": 10.750547818124412,
+      "test_loss": 0.9352642977727553,
+      "perplexity": 2.547886769556108,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": null
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.0,
+          "valid_sql": 0.1,
+          "execution_accuracy": 0.0
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.06976744186046512,
+          "valid_sql": 0.3488372093023256,
+          "execution_accuracy": 0.25
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": 0.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.0,
+          "valid_sql": 0.5555555555555556,
+          "execution_accuracy": 0.5714285714285714
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.5,
+          "execution_accuracy": 0.0
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.0,
+          "valid_sql": 0.2,
+          "execution_accuracy": 0.0
+        }
+      }
+    },
+    {
+      "model": "qwen base",
+      "exact_match_accuracy": 0.125,
+      "valid_sql_rate": 0.625,
+      "execution_accuracy": 0.5208333333333334,
+      "execution_examples": 48,
+      "valid_sql_error_breakdown": {
+        "missing_column": 5,
+        "reference_syntax_error": 6,
+        "reference_other_database_error": 8,
+        "other_database_error": 3,
+        "reference_missing_table": 1,
+        "reference_missing_column": 3,
+        "missing_table": 1
+      },
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 3777.7861069449095,
+        "p50_ms": 3032.4122000001807,
+        "p95_ms": 8128.813120000634,
+        "p99_ms": 9474.650002999568
+      },
+      "mean_tokens_per_second": 10.033774204409639,
+      "test_loss": 0.4761077922941305,
+      "perplexity": 1.609796530267597,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": null
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.0,
+          "valid_sql": 1.0,
+          "execution_accuracy": 0.25
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.20930232558139536,
+          "valid_sql": 0.6511627906976745,
+          "execution_accuracy": 0.6428571428571429
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": 0.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.0,
+          "valid_sql": 0.6666666666666666,
+          "execution_accuracy": 0.5714285714285714
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": 0.0
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.0,
+          "valid_sql": 0.2,
+          "execution_accuracy": 0.3333333333333333
+        }
+      }
+    },
+    {
+      "model": "Qwen2.5-Coder + WikiSQL/Spider/Finance",
+      "exact_match_accuracy": 0.2222222222222222,
+      "valid_sql_rate": 0.6805555555555556,
+      "execution_accuracy": 0.5625,
+      "execution_examples": 48,
+      "valid_sql_error_breakdown": {
+        "reference_syntax_error": 6,
+        "reference_other_database_error": 8,
+        "missing_column": 4,
+        "reference_missing_table": 1,
+        "reference_missing_column": 3,
+        "syntax_error": 1
+      },
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 6201.329472222369,
+        "p50_ms": 5432.849299999361,
+        "p95_ms": 12587.259545000781,
+        "p99_ms": 13465.208285999845
+      },
+      "mean_tokens_per_second": 5.344979908013485,
+      "test_loss": 0.2348708281430586,
+      "perplexity": 1.2647453886706532,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": null
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.1,
+          "valid_sql": 0.9,
+          "execution_accuracy": 0.625
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.3023255813953488,
+          "valid_sql": 0.6976744186046512,
+          "execution_accuracy": 0.5714285714285714
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 1.0,
+          "execution_accuracy": 1.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.1111111111111111,
+          "valid_sql": 0.6666666666666666,
+          "execution_accuracy": 0.5714285714285714
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.5,
+          "execution_accuracy": 0.0
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.2,
+          "valid_sql": 0.4,
+          "execution_accuracy": 0.3333333333333333
+        }
+      }
+    }
+  ]
+}

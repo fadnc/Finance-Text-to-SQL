@@ -21,7 +21,8 @@ from peft import PeftModel
 
 from src.eval.metrics import evaluate_pair, summarize_latencies, validate_query_schema
 from src.utils.model_loader import load_model
-from src.utils.prompting import build_prompt, extract_sql
+from src.utils.prompting import INSTRUCTION, SYSTEM, build_prompt, extract_sql
+from src.utils.progress import make_progress
 
 
 def sync_device():
@@ -45,7 +46,7 @@ def loss_for_example(model, tokenizer, prompt, target, max_length):
 
 def run_model(model, tokenizer, rows, name, args, max_length):
     model.eval()
-    prompt0 = build_prompt(rows[0]["question"], rows[0]["schema"])
+    prompt0 = build_prompt(rows[0]["question"], rows[0]["schema"], tokenizer)
     warm = tokenizer(prompt0, return_tensors="pt").to(next(model.parameters()).device)
     with torch.inference_mode():
         model.generate(**warm, max_new_tokens=2, do_sample=False,
@@ -53,8 +54,9 @@ def run_model(model, tokenizer, rows, name, args, max_length):
     sync_device()
 
     predictions, losses, skipped = [], [], 0
-    for index, row in enumerate(rows):
-        prompt = build_prompt(row["question"], row["schema"])
+    bar = make_progress(total=len(rows), desc=f"Evaluating {name}", unit="sample")
+    for row in rows:
+        prompt = build_prompt(row["question"], row["schema"], tokenizer)
         encoded = tokenizer(prompt, return_tensors="pt").to(next(model.parameters()).device)
         sync_device(); started = time.perf_counter()
         with torch.inference_mode():
@@ -79,7 +81,12 @@ def run_model(model, tokenizer, rows, name, args, max_length):
             "tokens_per_second": int(generated.numel()) / (latency / 1000) if latency else None,
             "gold_executable": metric["reference_executable"],
         })
-        print(f"{name}: {index + 1}/{len(rows)}", flush=True)
+        bar.update(1)
+        bar.set_postfix_str(
+            f"exact={sum(r['exact_match'] for r in predictions)} "
+            f"valid={sum(r['valid_sql'] for r in predictions)}"
+        )
+    bar.close()
 
     latency = summarize_latencies([r["generation_latency_ms"] for r in predictions])
     exact = sum(r["exact_match"] for r in predictions) / len(predictions)
@@ -118,6 +125,12 @@ def main():
     parser.add_argument("--max-new-tokens", type=int, default=None)
     parser.add_argument("--sql-timeout", type=float, default=1.0)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--skip-base", action="store_true",
+                        help="Skip the base model when comparing adapter checkpoints.")
+    parser.add_argument(
+        "--adapter-path", action="append", dest="adapter_paths",
+        help="Adapter to score; repeat to compare several adapters against the same base.",
+    )
     args = parser.parse_args()
     config = yaml.safe_load(Path("configs/training_config.yaml").read_text(encoding="utf-8"))
     args.max_new_tokens = args.max_new_tokens or config.get("generation_max_new_tokens", 256)
@@ -129,21 +142,29 @@ def main():
     base, tokenizer = load_model(config["model_name"])
     tokenizer.pad_token = tokenizer.pad_token or tokenizer.eos_token
     results = []
-    results.append(run_model(base, tokenizer, rows, "base", args, max_length))
-    adapter_path = Path(config["output_dir"])
-    if adapter_path.exists():
-        adapted = PeftModel.from_pretrained(base, str(adapter_path)); adapted.eval()
-        results.append(run_model(adapted, tokenizer, rows, "fine_tuned", args, max_length))
-    else:
-        print(f"Adapter missing at {adapter_path}; evaluated base only.")
+    if not args.skip_base:
+        results.append(run_model(base, tokenizer, rows, "base", args, max_length))
+    adapter_paths = [Path(p) for p in (args.adapter_paths or [config["output_dir"]])]
+    present_adapters = [path for path in adapter_paths if path.exists()]
+    if len(present_adapters) != len(adapter_paths):
+        missing = [str(path) for path in adapter_paths if not path.exists()]
+        print(f"Missing adapter path(s), skipped: {missing}")
+    for path in present_adapters:
+        adapted = PeftModel.from_pretrained(base, str(path)); adapted.eval()
+        label = "fine_tuned" if len(present_adapters) == 1 else path.name
+        results.append(run_model(adapted, tokenizer, rows, label, args, max_length))
+        base = adapted.unload()
+        del adapted
 
     metadata = {"timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 "dataset": str(Path(args.data)), "dataset_sha256": hashlib.sha256(Path(args.data).read_bytes()).hexdigest(),
                 "examples": len(rows), "base_model": config["model_name"],
                 "base_model_revision": getattr(base.config, "_commit_hash", None),
-                "adapter": str(adapter_path), "adapter_present": adapter_path.exists(),
-                "adapter_sha256": hashlib.sha256((adapter_path / "adapter_model.safetensors").read_bytes()).hexdigest() if (adapter_path / "adapter_model.safetensors").exists() else None,
+                "adapters": [{"path": str(path), "sha256": hashlib.sha256((path / "adapter_model.safetensors").read_bytes()).hexdigest() if (path / "adapter_model.safetensors").exists() else None} for path in present_adapters],
                 "max_new_tokens": args.max_new_tokens, "do_sample": False, "max_loss_sequence_length": max_length,
+                "prompt_instruction_sha256": hashlib.sha256(
+                    f"{SYSTEM}\n{INSTRUCTION}".encode("utf-8")
+                ).hexdigest(),
                 "hardware": {"platform": platform.platform(), "python": platform.python_version(),
                              "torch": torch.__version__, "cuda": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}}
     summary = {"metadata": metadata, "models": [{k: v for k, v in result.items() if k != "predictions"} for result in results]}

@@ -213,10 +213,16 @@ def execute_readonly(
     timeout_s: float = 1.0,
 ) -> tuple[list[tuple], dict[str, Any]]:
     """Execute one read-only query against a local, disposable test fixture."""
-    conn = _open_database(db_path, context)
-    status = _configure_limits(conn, timeout_s)
+    conn = None
+    status = {"timed_out": lambda: False, "step_limited": lambda: False}
     started = time.monotonic()
     try:
+        # Fixture setup can fail independently of the prediction (for example,
+        # Gretel contexts containing MySQL-only views evaluated with SQLite).
+        # Return that error as a reference-fixture failure instead of aborting
+        # the full evaluation run.
+        conn = _open_database(db_path, context)
+        status = _configure_limits(conn, timeout_s)
         rows = _fetch_bounded(conn, sql)
         return rows, {"elapsed_s": time.monotonic() - started, "error_type": None}
     except OverflowError as exc:
@@ -232,7 +238,8 @@ def execute_readonly(
             "error": str(exc),
         }
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
 
 
 def validate_query_schema(sql: str, schema: str, timeout_s: float = 1.0) -> dict[str, Any]:

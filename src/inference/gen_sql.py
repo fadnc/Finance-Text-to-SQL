@@ -6,7 +6,7 @@ from src.utils.prompting import build_prompt, extract_sql
 def generate_sql(model, tokenizer, question, schema, max_new_tokens=256):
     """Generate SQL from a question and schema using the trained adapter."""
     device = next(model.parameters()).device
-    prompt = build_prompt(question, schema)
+    prompt = build_prompt(question, schema, tokenizer)
     inputs = tokenizer(prompt, return_tensors="pt").to(device)
 
     with torch.no_grad():

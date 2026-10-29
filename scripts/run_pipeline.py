@@ -1,6 +1,6 @@
 """
 End-to-end pipeline for training, inference, and evaluation on the
-gretelai/synthetic_text_to_sql dataset.
+gretelai/synthetic_text_to_sql, Spider, and WikiSQL datasets.
 """
 
 import os
@@ -36,6 +36,10 @@ def main():
             [sys.executable, "data/prepare_multi_dataset.py"],
             "Prepare Spider data and dataset mixture",
         ),
+        (
+            [sys.executable, "data/prepare_wikisql.py"],
+            "Prepare and validate WikiSQL data",
+        ),
         ([sys.executable, "-m", "src.training.train"], "Train model with QLoRA"),
         (
             [sys.executable, "-m", "scripts.generate_predictions"],
@@ -66,7 +70,7 @@ def main():
     ]
 
     print("\n" + "=" * 60)
-    print("FINANCE TEXT-TO-SQL (GRETEL) PIPELINE")
+    print("FINANCE TEXT-TO-SQL (GRETEL + SPIDER + WIKISQL) PIPELINE")
     print("=" * 60)
 
     for cmd, desc in steps:

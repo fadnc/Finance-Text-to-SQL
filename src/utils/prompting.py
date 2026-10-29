@@ -1,23 +1,73 @@
 """Shared prompt construction and SQL extraction.
 
 Training and inference must use exactly the same prompt layout; otherwise the
-adapter sees a different distribution at serving time.
+adapter sees a different distribution at serving time. The layout is rendered
+through the tokenizer's chat template when one is available, so swapping base
+models does not require editing this module. The legacy TinyLlama/Zephyr tags
+remain as a fallback for tokenizers without a chat template.
 """
 
 from __future__ import annotations
 
 import re
 
-INSTRUCTION = "Write a SQL query for the following question"
+INSTRUCTION = (
+    "Write one read-only SQL SELECT query for the following question using only "
+    "the provided schema. Return SQL only."
+)
+
+SYSTEM = "You are a precise text-to-SQL assistant."
+
+# Layout used before chat templates were supported (TinyLlama/Zephyr style).
+LEGACY_PROMPT = (
+    "<|user|>\n{instruction}\n\n"
+    "Question: {question}\n"
+    "Schema: {schema}\n"
+    "<|assistant|>"
+)
 
 
-def build_prompt(question: str, schema: str) -> str:
-    """Build the user/assistant prompt used for both training and inference."""
+def _message_body(question: str, schema: str) -> str:
     return (
-        f"<|user|>\n{INSTRUCTION}\n\n"
+        f"{INSTRUCTION}\n\n"
         f"Question: {question.strip()}\n"
-        f"Schema: {schema.strip()}\n"
-        f"<|assistant|>"
+        f"Schema: {schema.strip()}"
+    )
+
+
+def build_prompt(question: str, schema: str, tokenizer=None) -> str:
+    """Build the prompt used for both training and inference.
+
+    When a tokenizer with a chat template is supplied, the prompt is rendered
+    with ``apply_chat_template`` (ChatML for Qwen) and ends exactly at the
+    assistant generation prompt. Callers must not append extra whitespace, or
+    training and serving prompts will diverge.
+    """
+    apply_template = getattr(tokenizer, "apply_chat_template", None)
+    if apply_template is not None:
+        messages = [
+            {"role": "system", "content": SYSTEM},
+            {"role": "user", "content": _message_body(question, schema)},
+        ]
+        try:
+            return apply_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
+        except TypeError:
+            # Older transformers releases do not accept enable_thinking.
+            return apply_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+
+    return LEGACY_PROMPT.format(
+        instruction=INSTRUCTION,
+        question=question.strip(),
+        schema=schema.strip(),
     )
 
 

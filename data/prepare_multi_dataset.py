@@ -153,6 +153,9 @@ def main() -> None:
         "spider_training_rows": len(train_rows),
         "spider_dev_rows": len(dev_rows),
     }
+    wikisql_info_path = processed_dir / "wikisql_info.json"
+    if wikisql_info_path.exists():
+        info["wikisql"] = json.loads(wikisql_info_path.read_text(encoding="utf-8"))
     (processed_dir / "multi_dataset_info.json").write_text(
         json.dumps(info, indent=2), encoding="utf-8"
     )

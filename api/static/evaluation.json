@@ -1,17 +1,18 @@
 {
-  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0 + LoRA adapter",
-  "evaluated_at": "2026-10-27",
+  "model": "Qwen/Qwen2.5-Coder-1.5B-Instruct + LoRA adapter",
+  "evaluated_at": "2026-10-29",
   "test_samples": 48,
   "total_test_samples": 72,
   "execution_accuracy": 0.5625,
   "execution_correct": 27,
-  "exact_match_accuracy": 0.19444444444444445,
-  "exact_match_correct": 14,
+  "exact_match_accuracy": 0.25,
+  "exact_match_correct": 18,
   "gold_execution_errors": 24,
   "method": "Greedy generation on the official gretelai/synthetic_text_to_sql finance test split; per-example SQLite context execution comparison and normalized exact SQL match.",
   "error_breakdown": {
-    "column_hallucination": 6,
-    "logic_error": 14,
+    "syntax_error": 1,
+    "column_hallucination": 3,
+    "logic_error": 16,
     "execution_error": 1
   },
   "failure_examples": [
@@ -21,13 +22,13 @@
       "expected": "SELECT name, SUM(total_transactions) FROM shariah_compliant_institutions;"
     },
     {
-      "question": "List the names and account balances for customers who have both a Shariah-compliant mortgage and a socially responsible loan?",
-      "predicted": "SELECT customer_name, account_balance FROM (SELECT customer_name, account_balance, mortgage_id FROM shariah_mortgages UNION SELECT customer_name, account_balance, loan_id FROM shariah_loans UNION SELECT customer_name, account_balance, mortgage_id FROM socially_responsible_loans) WHERE mortgage_id IS NOT NULL;",
-      "expected": "SELECT sm.customer_name, sm.account_balance FROM shariah_mortgages sm JOIN shariah_loans sl ON sm.mortgage_id = sl.mortgage_id JOIN socially_responsible_loans srl ON sm.customer_id = srl.customer_id;"
+      "question": "List all Shariah-compliant financial products offered in the Southeast Asian region",
+      "predicted": "SELECT product_name FROM shariah_compliant_products WHERE region = 'Southeast Asian';",
+      "expected": "SELECT product_name FROM shariah_compliant_products WHERE region = 'Southeast Asia';"
     },
     {
       "question": "Rank customers by total deposits in Shariah-compliant accounts, with ties given the same rank.",
-      "predicted": "SELECT customer_id, SUM(balance) as total_deposits, ROW_NUMBER() OVER (ORDER BY total_deposits DESC) as rank FROM deposits WHERE account_type = 'Shariah-compliant' GROUP BY customer_id;",
+      "predicted": "SELECT customer_id, ROW_NUMBER() OVER (ORDER BY SUM(balance) DESC, customer_id) AS rank FROM deposits WHERE account_type = 'Shariah';",
       "expected": "SELECT customer_id, RANK() OVER (ORDER BY SUM(balance) DESC) as deposit_rank FROM deposits WHERE account_type = 'Shariah-compliant' GROUP BY customer_id;"
     }
   ]

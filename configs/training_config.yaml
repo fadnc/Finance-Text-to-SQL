@@ -1,7 +1,9 @@
 # Model Configuration
-# model_name: microsoft/Phi-3-mini-4k-instruct
-model_name: TinyLlama/TinyLlama-1.1B-Chat-v1.0
-output_dir: models/tinyllama-multidataset-sql
+# The earlier TinyLlama baseline is kept in models/tinyllama-gretel-finance-sql
+# for comparison; this run uses a 1.5B code model that still fits 4 GB VRAM.
+model_name: Qwen/Qwen2.5-Coder-1.5B-Instruct
+output_dir: models/qwen2.5-coder-1.5b-wikisql-sql
+training_output_dir: models/qwen2.5-coder-1.5b-wikisql-sql-candidate
 
 # Dataset Configuration
 # Source: https://huggingface.co/datasets/gretelai/synthetic_text_to_sql
@@ -19,18 +21,31 @@ dataset:
   max_eval_samples: null
   prepared_dir: data/processed
 
-# Additional cross-domain supervision. Spider is used for training and
-# database-disjoint validation; its official dev split remains held out.
+# Optional cross-domain supervision. The finance-focused continuation uses a
+# reproducible sample of Spider training rows to improve SQL structure coverage.
 training_datasets:
   spider:
+    include: true
     repo_id: griffith-bigdata/GRAST-SQL-Spider
     revision: d6702d32cd917b57d32d21bb41d027ee49fa0c3e
     train_file: spider_train_samples.json
     dev_file: spider_dev_samples.json
     license: CC-BY-SA-4.0
     validation_size: 0.1
+    max_train_samples: 600
     finance_repeat: 3
     cache_dir: .hf_cache/hub
+  # WikiSQL supplies broad single-table schema grounding (24,241 Wikipedia
+  # tables). It has no joins/CTEs, so it supplements rather than replaces
+  # Spider. The official dev split is used as validation.
+  wikisql:
+    include: true
+    source_url: https://github.com/salesforce/WikiSQL/raw/master/data.tar.bz2
+    sha256: 755c728ab188e364575705c8641f3fafd86fb089cb8b08e8c03f01832aae0881
+    license: "Wikipedia-derived; see https://github.com/salesforce/WikiSQL (BSD-3-Clause code)"
+    cache_dir: .hf_cache/wikisql
+    max_train_samples: 8000
+    max_validation_samples: 1000
 
 # Paths
 db_path: data/processed/finance.db

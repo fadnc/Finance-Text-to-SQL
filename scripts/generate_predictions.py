@@ -25,7 +25,7 @@ def load_config():
 
 def generate_sql(model, tokenizer, question, schema, max_new_tokens):
     """Generate SQL with the same prompt layout used during training."""
-    prompt = build_prompt(question, schema)
+    prompt = build_prompt(question, schema, tokenizer)
     inputs = tokenizer(prompt, return_tensors="pt").to(next(model.parameters()).device)
 
     with torch.no_grad():
@@ -72,6 +72,11 @@ def main():
     )
     parser.add_argument("--limit", type=int, default=None, help="Maximum samples")
     parser.add_argument(
+        "--data",
+        default=None,
+        help="Local JSON split to use instead of reloading the Hugging Face dataset.",
+    )
+    parser.add_argument(
         "--output",
         default=None,
         help="Path for the predictions JSON",
@@ -85,14 +90,20 @@ def main():
 
     config = load_config()
     print("Loading dataset...")
-    if args.split == "spider_dev":
+    if args.data:
+        with open(args.data, encoding="utf-8") as f:
+            test_data = json.load(f)
+    elif args.split == "spider_dev":
         with open("data/processed/spider_dev.json", encoding="utf-8") as f:
             test_data = json.load(f)
     else:
         splits = load_gretel_splits(config)
         test_data = splits[args.split]
     if args.limit:
-        test_data = test_data.select(range(min(args.limit, len(test_data))))
+        if isinstance(test_data, list):
+            test_data = test_data[: args.limit]
+        else:
+            test_data = test_data.select(range(min(args.limit, len(test_data))))
 
     default_output = (
         "data/processed/spider_dev_predictions.json"

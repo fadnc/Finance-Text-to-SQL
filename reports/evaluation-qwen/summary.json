@@ -1,0 +1,171 @@
+{
+  "metadata": {
+    "timestamp_utc": "2026-10-29T05:23:31.276541+00:00",
+    "dataset": "data\\processed\\gretel_finance_test.json",
+    "dataset_sha256": "639355601bb40da0a648bc2231e8876afc77f0c5c6e8d4dd555b0f8165247fc8",
+    "examples": 72,
+    "base_model": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+    "base_model_revision": "2e1fd397ee46e1388853d2af2c993145b0f1098a",
+    "adapters": [
+      {
+        "path": "models\\qwen2.5-coder-1.5b-wikisql-sql",
+        "sha256": "505dd245f6a260dae1f27ab56e923c31635003e6188e45cd3d71022301da4ed0"
+      }
+    ],
+    "max_new_tokens": 256,
+    "do_sample": false,
+    "max_loss_sequence_length": 512,
+    "prompt_instruction_sha256": "150e6a33e5069d025abc37dbae7ac0ab6b6e0c229e3627000d7457660028a2a8",
+    "hardware": {
+      "platform": "Windows-11-10.0.26200-SP0",
+      "python": "3.12.10",
+      "torch": "2.10.0+cu128",
+      "cuda": "NVIDIA GeForce RTX 3050 Laptop GPU"
+    }
+  },
+  "models": [
+    {
+      "model": "base",
+      "exact_match_accuracy": 0.125,
+      "valid_sql_rate": 0.625,
+      "execution_accuracy": 0.5208333333333334,
+      "execution_examples": 48,
+      "valid_sql_error_breakdown": {
+        "missing_column": 5,
+        "reference_syntax_error": 6,
+        "reference_other_database_error": 8,
+        "other_database_error": 3,
+        "reference_missing_table": 1,
+        "reference_missing_column": 3,
+        "missing_table": 1
+      },
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 10803.478736110972,
+        "p50_ms": 9208.079699998052,
+        "p95_ms": 22468.838164999215,
+        "p99_ms": 28249.393183000844
+      },
+      "mean_tokens_per_second": 3.6054661453027705,
+      "test_loss": 0.4761077922941305,
+      "perplexity": 1.609796530267597,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": null
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.0,
+          "valid_sql": 1.0,
+          "execution_accuracy": 0.25
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.20930232558139536,
+          "valid_sql": 0.6511627906976745,
+          "execution_accuracy": 0.6428571428571429
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": 0.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.0,
+          "valid_sql": 0.6666666666666666,
+          "execution_accuracy": 0.5714285714285714
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": 0.0
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.0,
+          "valid_sql": 0.2,
+          "execution_accuracy": 0.3333333333333333
+        }
+      }
+    },
+    {
+      "model": "fine_tuned",
+      "exact_match_accuracy": 0.2222222222222222,
+      "valid_sql_rate": 0.6805555555555556,
+      "execution_accuracy": 0.5625,
+      "execution_examples": 48,
+      "valid_sql_error_breakdown": {
+        "reference_syntax_error": 6,
+        "reference_other_database_error": 8,
+        "missing_column": 4,
+        "reference_missing_table": 1,
+        "reference_missing_column": 3,
+        "syntax_error": 1
+      },
+      "generation_latency": {
+        "count": 72,
+        "mean_ms": 19390.293437499622,
+        "p50_ms": 17439.876000000368,
+        "p95_ms": 38004.07390500004,
+        "p99_ms": 42007.01046399946
+      },
+      "mean_tokens_per_second": 1.693542902722779,
+      "test_loss": 0.2348708281430586,
+      "perplexity": 1.2647453886706532,
+      "test_loss_examples": 72,
+      "test_loss_skipped_long": 0,
+      "by_complexity": {
+        "CTEs": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.0,
+          "execution_accuracy": null
+        },
+        "aggregation": {
+          "count": 10,
+          "exact_match": 0.1,
+          "valid_sql": 0.9,
+          "execution_accuracy": 0.625
+        },
+        "basic SQL": {
+          "count": 43,
+          "exact_match": 0.3023255813953488,
+          "valid_sql": 0.6976744186046512,
+          "execution_accuracy": 0.5714285714285714
+        },
+        "multiple_joins": {
+          "count": 1,
+          "exact_match": 0.0,
+          "valid_sql": 1.0,
+          "execution_accuracy": 1.0
+        },
+        "single join": {
+          "count": 9,
+          "exact_match": 0.1111111111111111,
+          "valid_sql": 0.6666666666666666,
+          "execution_accuracy": 0.5714285714285714
+        },
+        "subqueries": {
+          "count": 2,
+          "exact_match": 0.0,
+          "valid_sql": 0.5,
+          "execution_accuracy": 0.0
+        },
+        "window functions": {
+          "count": 5,
+          "exact_match": 0.2,
+          "valid_sql": 0.4,
+          "execution_accuracy": 0.3333333333333333
+        }
+      }
+    }
+  ]
+}

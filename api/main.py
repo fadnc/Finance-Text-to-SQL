@@ -28,7 +28,7 @@ from src.cache.sql_cache import SQLCache, canonical_key
 
 app = FastAPI(
     title="Finance Text-to-SQL API",
-    description="Natural language to SQL query generator fine-tuned on gretelai/synthetic_text_to_sql",
+    description="Natural language to SQL query generator fine-tuned on gretelai/synthetic_text_to_sql, Spider and WikiSQL",
     version="2.0.0",
 )
 app.add_middleware(
@@ -66,7 +66,7 @@ tokenizer = None
 model = None
 cache = SQLCache.from_env()
 _model_lock = asyncio.Lock()
-PROMPT_VERSION = "finance-text-to-sql-v1"
+PROMPT_VERSION = "finance-text-to-sql-v3-chatml"
 def _model_version(base_revision: str | None = None) -> str:
     digest = hashlib.sha256(f"{BASE_MODEL}:{base_revision or 'unresolved'}:{ADAPTER_PATH}".encode())
     for path in (Path(ADAPTER_PATH) / "adapter_config.json", Path(ADAPTER_PATH) / "adapter_model.safetensors"):
@@ -160,11 +160,16 @@ def get_schema():
 
 @app.get("/dataset")
 def get_dataset_info():
-    """Return the dataset source used to train the adapter."""
+    """Return the dataset sources used to train the adapter."""
     return {
         "name": config["dataset"]["name"],
         "domains": config["dataset"].get("domains") or [],
         "split": config["dataset"].get("eval_split", "test"),
+        "supplementary": [
+            name
+            for name, settings in (config.get("training_datasets") or {}).items()
+            if settings.get("include")
+        ],
     }
 
 

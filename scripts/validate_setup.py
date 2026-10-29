@@ -120,6 +120,39 @@ def test_dataset():
     return True
 
 
+def test_supplementary_datasets():
+    """Verify prepared Spider and WikiSQL snapshots and their mixture."""
+    print("\nTesting supplementary datasets...")
+    import json
+    from pathlib import Path
+
+    import yaml
+
+    with open("configs/training_config.yaml") as f:
+        config = yaml.safe_load(f)
+
+    expected = {
+        "spider": ("spider_train.json", "data/prepare_multi_dataset.py"),
+        "wikisql": ("wikisql_train.json", "data/prepare_wikisql.py"),
+    }
+    missing = []
+    for name, settings in (config.get("training_datasets") or {}).items():
+        if not settings.get("include", False):
+            continue
+        filename, script = expected[name]
+        path = Path("data/processed") / filename
+        if not path.exists():
+            missing.append(f"{path} (run {script})")
+            continue
+        rows = json.loads(path.read_text(encoding="utf-8"))
+        print(f"   {name}: {len(rows)} prepared training rows")
+
+    if missing:
+        print(f"   Missing snapshots: {missing}")
+        return False
+    return True
+
+
 def test_database():
     """Test the optional demo SQLite database."""
     print("\nTesting demo database...")
@@ -203,6 +236,7 @@ def main():
         (test_cuda, "CUDA availability"),
         (test_config, "Configuration"),
         (test_dataset, "Training dataset"),
+        (test_supplementary_datasets, "Supplementary datasets"),
         (test_database, "Demo database"),
         (test_eval_sample, "Evaluation pipeline"),
     ]

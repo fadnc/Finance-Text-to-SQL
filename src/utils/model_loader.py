@@ -5,9 +5,14 @@ def load_model(model_name: str, use_4bit: bool = True):
     """
     Load model with optional 4-bit quantization.
     Falls back to FP16/FP32 if quantization is unavailable.
+
+    ``attn_implementation="sdpa"`` keeps memory use predictable on small GPUs
+    and works for TinyLlama, Qwen and Phi checkpoints alike.
     """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
     # Check if CUDA and bitsandbytes are available for 4-bit quantization
     cuda_available = torch.cuda.is_available()
     bnb_available = False
@@ -34,21 +39,23 @@ def load_model(model_name: str, use_4bit: bool = True):
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             quantization_config=bnb_config,
-            device_map="auto"
+            device_map="auto",
+            attn_implementation="sdpa",
         )
     elif cuda_available:
         print("Loading model with FP16 (CUDA available, no 4-bit)...")
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float16,
-            device_map="auto"
+            dtype=torch.float16,
+            device_map="auto",
+            attn_implementation="sdpa",
         )
     else:
         print("Loading model on CPU (no CUDA)...")
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float32,
-            low_cpu_mem_usage=True
+            dtype=torch.float32,
+            low_cpu_mem_usage=True,
         )
 
     return model, tokenizer
