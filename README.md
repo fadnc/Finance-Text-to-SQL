@@ -438,6 +438,8 @@ metric.
 
 ### Vercel dashboard
 
+Step-by-step runbook: [`docs/local-api.md`](docs/local-api.md).
+
 `api/static/` is the linked Vercel project (a static deployment of the same
 dashboard). It bundles no inference engine, so it connects to a FastAPI server
 that loads the newest `Qwen2.5-Coder-1.5B` adapter.

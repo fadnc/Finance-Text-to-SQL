@@ -397,7 +397,7 @@
       <p>The dashboard is served by the FastAPI app. Enter the public URL of a running Finance Text-to-SQL server to generate SQL from a hosted deployment. A hosted page falls back to <span class="mono">http://127.0.0.1:8000</span> when no URL is configured, so a local Qwen API works without extra setup.</p>
       <label for="apiUrl">FastAPI base URL</label>
       <input class="api-input" id="apiUrl" type="text" inputmode="url" placeholder="http://127.0.0.1:8000" autocomplete="url" spellcheck="false">
-      <div class="dialog-hint">Requests go directly from your browser to this URL. The API must allow cross-origin requests.</div>
+      <div class="dialog-hint">Requests go directly from your browser to this URL. The API must allow cross-origin requests. If this page is hosted and the API is on 127.0.0.1, allow local network access when your browser asks.</div>
       <div class="dialog-actions"><button class="small-btn" type="button" id="clearApi">Clear</button><button class="generate" type="submit">Connect API</button></div>
     </form>
   </dialog>
@@ -853,6 +853,7 @@ CREATE TABLE transactions (txn_id INT PRIMARY KEY, account_id INT, txn_type TEXT
         $('sideStatus').textContent = 'API unavailable';
         $('topStatus').textContent = 'API unavailable';
         setModelState(false, 'Unavailable');
+        $('runtimeNote').textContent = apiFailureNote();
       }
     }
 
@@ -876,6 +877,19 @@ CREATE TABLE transactions (txn_id INT PRIMARY KEY, account_id INT, txn_type TEXT
     function shortModel(name) {
       if (!name) return '';
       return name.split('/').pop().replace(/-chat.*$/i, '').replace(/-instruct.*$/i, '');
+    }
+
+    function isLoopbackApi() {
+      try {
+        const host = new URL(apiBase).hostname;
+        return host === '127.0.0.1' || host === 'localhost' || host === '[::1]';
+      } catch (_) { return false; }
+    }
+
+    function apiFailureNote() {
+      return !servedLocally && isLoopbackApi()
+        ? 'Allow local network access for this page'
+        : 'Could not reach the configured API';
     }
 
     async function loadRuntime() {
@@ -905,6 +919,7 @@ CREATE TABLE transactions (txn_id INT PRIMARY KEY, account_id INT, txn_type TEXT
         setModelState(ready, ready === false ? 'Offline' : ready ? 'Live' : 'Connected');
       } catch (_) {
         setModelState(false, 'Unavailable');
+        $('runtimeNote').textContent = apiFailureNote();
       }
     }
 
