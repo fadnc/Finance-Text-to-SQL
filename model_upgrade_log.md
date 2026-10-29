@@ -1,37 +1,47 @@
 # Model Upgrade Log — Finance Text-to-SQL
 
-**Last updated:** 2026-10-27  
-**Status:** Complete; API stopped after verification  
+**Last updated:** 2026-10-29  
+**Status:** Qwen2.5-Coder + WikiSQL/Spider/finance adapter trained, evaluated, and served  
 **Project:** `D:\PRJKT\py\Finance-Text-to-SQL`
 
 | Item | Current value |
 |---|---|
-| Dataset | `gretelai/synthetic_text_to_sql`, finance domain |
-| Base model | `TinyLlama/TinyLlama-1.1B-Chat-v1.0` |
-| Adapter | `models/tinyllama-gretel-finance-sql` |
-| Tuning method | 4-bit QLoRA |
-| Training steps | 711 / 711 |
-| Final validation loss | 0.4237 |
-| Execution accuracy | **56.25%** (27 / 48 executable references) |
-| Exact-match accuracy | **19.44%** (14 / 72) |
+| Dataset | `gretelai/synthetic_text_to_sql` (finance) + Spider + WikiSQL |
+| Base model | `Qwen/Qwen2.5-Coder-1.5B-Instruct` |
+| Adapter | `models/qwen2.5-coder-1.5b-wikisql-sql` |
+| Previous base model | `TinyLlama/TinyLlama-1.1B-Chat-v1.0` |
+| Tuning method | 4-bit QLoRA, rank 16, `all-linear` |
+| Training steps | 2,781 (1 epoch over 11,435 examples) |
+| Final validation loss | 0.1321 (1,976 validation rows) |
+| Last measured execution accuracy | **56.25%** (27 / 48) — Qwen adapter |
+| Last measured exact match | **22.2%** (16 / 72) — Qwen adapter, strict comparison evaluator |
+| Last measured valid SQL rate | **68.1%** (49 / 72) — Qwen adapter |
+| Last measured test loss | **0.235** — Qwen adapter |
 | Gold execution errors | 24 / 72 (excluded from execution accuracy) |
 | Local API | `http://127.0.0.1:8000` |
-| Regression tests | 16 passing |
-| Per-request latency | Returned as `latency_ms`; shown in dashboard |
+| Regression tests | 32 passing |
+| Per-request latency | Returned as `latency_ms`; P50 5,433 ms for the Qwen adapter |
 
 ### Latest update
 
-- Added a server-side `latency_ms` field to `/generate-sql`.
-- Added a `Latency X.XXs` metric to the dashboard result header, with a
-  server/round-trip tooltip.
-- Extended the demo fallback for purchase-history questions such as
-  “what did I buy in the last 3 weeks”.
-- Added relative period parsing (`3 weeks` → `-21 days`), top-N item queries,
-  and top-category selection.
-- Expanded the regression suite to 16 tests.
-- Upgraded the dashboard: full DDL parsing with collapsible tables and schema
-  search, SQL syntax highlighting, source and validation badges, `.sql` export,
-  browser-local query history, model runtime card, and responsive layout polish.
+- Qwen2.5-Coder 1.5B QLoRA run completed on 2026-10-29: 2,781 steps, 1 epoch,
+  final validation loss 0.1321 (see Appendix C for the full outcome).
+- Held-out finance comparison re-benchmarked all eight models on the same 72
+  examples; artifacts are in `reports/model_comparison/`.
+- Qwen adapter: 22.2% exact match, 68.1% valid SQL, 56.2% execution, 0.235 test
+  loss, P50 latency 5,433 ms. It has the best exact match and loss; execution is
+  statistically tied with the best TinyLlama adapter on 48 executable examples.
+- `api/main.py` now serves the Qwen adapter because it reads `model_name` and
+  `output_dir` from `configs/training_config.yaml`.
+- The Vercel-hosted dashboard (`api/static/`) can be pointed at any Qwen-backed
+  API with `?api=<url>` or the `finance-sql-api` meta tag.
+- Earlier serving work remains in place: schema validation and SQL guardrails,
+  demo fallback, server-side `latency_ms`, Redis cache, and the upgraded
+  dashboard (DDL parsing, schema search, syntax highlighting, history, `.sql`
+  export, runtime card, responsive layout).
+
+> Sections 5-6 below describe the earlier TinyLlama baseline run. The current
+> model, training run, and metrics are in Appendix C.
 
 ---
 
@@ -77,8 +87,9 @@ The project remains finance-focused. The full 100,000-row multi-domain dataset i
 | Serving | FastAPI adapter loading and shared greedy inference | `/generate-sql` endpoint |
 | Dashboard | Live evaluation, schema, and generation integration | Finance SQL Studio UI |
 | Reliability | SQL validation, dialect normalization, demo fallback | Invalid model SQL is no longer returned silently for the demo |
-| Testing | Guardrail and endpoint regression tests | 16 tests passing |
+| Testing | Guardrail, endpoint, cache, metrics, and formatting regression tests | 32 tests passing |
 | Observability | Server and end-to-end latency metric | `latency_ms` + dashboard display |
+| Base model upgrade | Qwen2.5-Coder 1.5B + WikiSQL/Spider/finance mixture | 22.2% exact / 68.1% valid / 56.2% execution / 0.235 loss |
 
 ---
 
@@ -765,3 +776,119 @@ Open `http://127.0.0.1:8000`.
   }
 }
 ```
+
+---
+
+## Appendix C � Qwen2.5-Coder-1.5B + WikiSQL migration (2026-10-28)
+
+Status: **code complete, training not started.** The TinyLlama numbers above
+remain the only measured results and stay as the comparison baseline.
+
+### Model change
+
+| Item | Before | After |
+|---|---|---|
+| Base model | `TinyLlama/TinyLlama-1.1B-Chat-v1.0` | `Qwen/Qwen2.5-Coder-1.5B-Instruct` |
+| Adapter output | `models/tinyllama-multidataset-sql` | `models/qwen2.5-coder-1.5b-wikisql-sql` |
+| Prompt layout | hardcoded `<|user|>` / `<|assistant|>` | tokenizer `apply_chat_template` (ChatML) |
+| LoRA targets | `q_proj`, `v_proj` | `all-linear` (architecture-agnostic) |
+| Attention | default | `sdpa` |
+| Cache prompt version | `finance-text-to-sql-v2-readonly` | `finance-text-to-sql-v3-chatml` |
+
+Rationale: the 1.1B model was the quality bottleneck (56.25% execution,
+19.44% exact match, with logic and column errors dominating). Qwen2.5-Coder
+1.5B keeps the 4 GB VRAM budget while adding code/SQL pretraining.
+
+Files changed: `configs/training_config.yaml`, `src/utils/prompting.py`,
+`src/utils/model_loader.py`, `src/training/lora_config.py`,
+`src/training/formatting.py`, `src/inference/gen_sql.py`,
+`scripts/generate_predictions.py`, `scripts/evaluate_models.py`, `api/main.py`.
+
+### Dataset change: WikiSQL
+
+- Source: `https://github.com/salesforce/WikiSQL/raw/master/data.tar.bz2`
+  (26,164,664 bytes, sha256 `755c728a�0881`), pinned in the config.
+- Why not the HF copy: `Salesforce/wikisql` still requires a dataset loading
+  script, and `datasets 4.6.1` no longer runs those.
+- Raw `sql.conds` are `[column_index, operator_index, value]` triples and table
+  metadata lives in `*.tables.jsonl`; `data/prepare_wikisql.py` renders both
+  into executable SQLite.
+- Rendering rules: quoted human headers, `REAL`/`TEXT` from the source types,
+  `AGG` = `MAX/MIN/COUNT/SUM/AVG`, `COND_OPS` = `= > <` (operator 3 never occurs).
+- Validation: every rendered gold query is executed against an in-memory copy
+  of its table. All 56,355 train, 8,421 dev, and 15,878 test examples executed
+  successfully; no rows were dropped.
+
+Prepared artifacts:
+
+| File | Rows | Notes |
+|---|---:|---|
+| `data/processed/wikisql_train.json` | 56,355 | 18,585 tables; no `INSERT` context |
+| `data/processed/wikisql_validation.json` | 2,000 | official dev slice; includes context |
+| `data/processed/wikisql_test.json` | 2,000 | official test slice; includes context |
+| `data/processed/wikisql_info.json` | � | source, checksum, license, counts |
+
+Training mixture (`configs/training_config.yaml`):
+
+| Source | Presentations |
+|---|---:|
+| WikiSQL (sampled) | 8,000 |
+| Spider (capped) | 600 |
+| Gretel finance � 3 | 2,835 |
+| **Train total** | **11,435** |
+
+Validation: 106 finance + ~885 Spider + 1,000 WikiSQL = 1,991 rows. Test stays
+the held-out 72 Gretel finance rows.
+
+### Known limitations of this change
+
+- WikiSQL is single-table and has no joins, GROUP BY, ORDER BY, subqueries, or
+  CTEs. It should reduce column/table hallucination, not logic errors.
+- WikiSQL's license is only marked "unknown" on the HF card; content is
+  Wikipedia-derived and the upstream code is BSD-3-Clause.
+- The retrain completed on 2026-10-29; metrics are in the outcome below.
+
+### Outcome (2026-10-29)
+
+Training completed in 2,781 optimizer steps (11,435 examples, 1 epoch,
+effective batch size 4) in about 5 h 20 m on the 4 GB RTX 3050 Laptop. The
+first attempt was interrupted at step 200 by a machine shutdown; the run was
+restarted from those adapter weights with a fresh optimizer and schedule
+(`--init-adapter`), so the final step count is one full epoch on top of the
+first 200 steps.
+
+| Training metric | Value |
+|---|---:|
+| Train loss (final logging window) | 0.0356 |
+| Epoch train loss | 0.0637 |
+| Validation loss (1,976 rows) | 0.1321 |
+| Trainable parameters | 18,464,768 (1.18%) |
+| Adapter size | 36.98 MB |
+
+Held-out finance results (72 examples, 48 executable gold queries, greedy):
+
+| Model | Exact match | Valid SQL | Execution | Test loss |
+|---|---:|---:|---:|---:|
+| TinyLlama 1.1B base | 1.4% | 79.2% | 43.8% | 0.724 |
+| TinyLlama + Gretel finance | 18.1% | 73.6% | 56.2% | 0.482 |
+| TinyLlama + multi-dataset | 18.1% | 65.3% | 54.2% | 0.487 |
+| TinyLlama + multi-dataset (candidate) | 15.3% | 66.7% | 58.3% | 0.449 |
+| TinyLlama + multi-dataset + Spider (ckpt359) | 16.7% | 63.9% | 54.2% | 0.460 |
+| phi3-sql (TinyLlama adapter) | 4.2% | 31.9% | 22.9% | 0.935 |
+| Qwen2.5-Coder 1.5B base | 12.5% | 62.5% | 52.1% | 0.476 |
+| **Qwen2.5-Coder + WikiSQL/Spider/Finance** | **22.2%** | **68.1%** | 56.2% | **0.235** |
+
+The Qwen adapter improves exact match (+9.7 points over its base), valid SQL
+(+5.6), and target-token loss (0.235 versus 0.476), and adds +4.2 execution
+points over the Qwen base. Execution accuracy is one example behind the best
+TinyLlama adapter (27/48 versus 28/48), which is not a meaningful difference on
+this denominator. Artifacts: `reports/evaluation-qwen/` (base versus adapter)
+and `reports/model_comparison/` (all models).
+
+### Next steps
+
+1. Serve the evaluated adapter path, not a different candidate checkpoint.
+2. Add a larger or real-world finance benchmark; 48 executable examples is too
+   small to separate the top adapters.
+3. Revisit logic errors (the dominant failure class); WikiSQL cannot teach
+   joins, GROUP BY, or CTEs.

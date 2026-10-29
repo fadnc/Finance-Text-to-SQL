@@ -1,19 +1,21 @@
-# Finance Text-to-SQL (Gretel + Spider)
+# Finance Text-to-SQL (Gretel + Spider + WikiSQL)
 
 Fine-tuning small language models for natural language to SQL using QLoRA and
-two public datasets: finance examples from
-[`gretelai/synthetic_text_to_sql`](https://huggingface.co/datasets/gretelai/synthetic_text_to_sql)
-and cross-domain examples from
-[Spider](https://yale-lily.github.io/spider).
+three public datasets: finance examples from
+[`gretelai/synthetic_text_to_sql`](https://huggingface.co/datasets/gretelai/synthetic_text_to_sql),
+cross-domain examples from [Spider](https://yale-lily.github.io/spider), and
+single-table schema grounding from
+[WikiSQL](https://github.com/salesforce/WikiSQL).
 
 ## Overview
 
 This project demonstrates efficient domain adaptation of instruction-tuned LLMs
 for Text-to-SQL. Key features:
 
-- **Public dataset, not hand-written templates**: loads `gretelai/synthetic_text_to_sql` with `datasets.load_dataset`
+- **Public datasets, not hand-written templates**: loads Gretel finance rows, Spider, and WikiSQL from pinned sources
 - **Per-example schemas**: each training row ships its own DDL; the model is prompted with the schema instead of memorising one fixed database
-- **Parameter-efficient fine-tuning**: QLoRA with 4-bit NF4 quantization and LoRA adapters
+- **Tokenizer-driven chat prompts**: the shared prompt builder uses `apply_chat_template`, so the base model can be swapped without rewriting the prompt layout
+- **Parameter-efficient fine-tuning**: QLoRA with 4-bit NF4 quantization and architecture-agnostic `all-linear` LoRA targets
 - **Memory optimization**: gradient checkpointing and paged optimizers for consumer GPUs
 - **Execution-based evaluation**: creates an in-memory SQLite database from each sample's `sql_context` and compares actual query results
 - **Base/model comparison**: scores the base model and fine-tuned adapter on the same held-out examples
@@ -25,10 +27,9 @@ for Text-to-SQL. Key features:
 The upstream Gretel dataset contains 100,000 training rows, but the project
 filters it to finance. That leaves 1,051 examples, split into 945 training and
 106 validation rows, plus 72 official test rows. Spider adds 8,659 human-written
-cross-domain training examples and 1,034 held-out development examples. The
-training mixture has about 10,600 presentations: 7,774 Spider training rows
-after a database-disjoint validation holdout, plus the 945 finance examples
-repeated three times to keep the finance task represented during training.
+cross-domain training examples and 1,034 held-out development examples.
+WikiSQL adds 56,355 single-table training examples over 18,585 Wikipedia tables,
+with an official 8,421-row dev split used for validation.
 
 The current mixture uses these sources:
 
@@ -36,10 +37,17 @@ The current mixture uses these sources:
 |---|---|---|
 | Gretel synthetic text-to-SQL | Finance train, validation, and SQLite-context test | Apache-2.0 |
 | Spider 1.0 (GRAST-SQL schema metadata) | Cross-domain train, validation, and held-out dev exact-match evaluation | CC BY-SA 4.0 |
+| WikiSQL | Single-table schema grounding; 8,000 sampled train rows and 1,000 dev rows per epoch | Wikipedia-derived (upstream code BSD-3-Clause; HF card lists license as unknown) |
 
-Spider's dev databases remain out of the training and validation splits. Its
-rows do not include database contents, so Spider is evaluated by normalized SQL
-exact match; execution accuracy is measured on Gretel's per-example SQLite
+The default training mixture is about 11,435 presentations: 8,000 WikiSQL rows,
+600 Spider rows, and 945 finance examples repeated three times. WikiSQL's
+official dev split is used for validation; it is table-disjoint from training.
+Spider's dev databases remain out of the training and validation splits.
+
+Spider and WikiSQL rows do not include database contents in the prompt, so
+Spider is evaluated by normalized SQL exact match; WikiSQL snapshots do include
+`INSERT` statements for the 2,000-row dev/test slices, so its gold queries can
+also be executed. Execution accuracy is measured on Gretel's per-example SQLite
 contexts.
 
 The Gretel source can be loaded directly from the Hugging Face Hub:
@@ -89,6 +97,7 @@ To use every domain instead of finance only, set `dataset.domains: []` in
 ├── data/
 │   ├── prepare_dataset.py        # Load + filter + snapshot Gretel dataset
 │   ├── prepare_multi_dataset.py  # Fetch and normalize Spider schema metadata
+│   ├── prepare_wikisql.py        # Download, render, and validate WikiSQL
 │   ├── gen_dataset.py            # Deprecated shim; routes to prepare_dataset.py
 │   ├── setup_test_db.py          # Optional personal-finance demo database
 │   └── processed/                # Prepared JSON, predictions, evaluation output
@@ -105,7 +114,7 @@ To use every domain instead of finance only, set `dataset.domains: []` in
 ├── src/
 │   ├── data/
 │   │   ├── gretel.py             # Dataset loader + DDL extraction
-│   │   └── multi_dataset.py      # Combined Gretel + Spider train/validation
+│   │   └── multi_dataset.py      # Combined Gretel + Spider + WikiSQL train/validation
 │   ├── eval/
 │   │   ├── eval.py
 │   │   ├── metrics.py           # Safe execution, validity, exact match, latency metrics
@@ -138,7 +147,7 @@ To use every domain instead of finance only, set `dataset.domains: []` in
 ### Requirements
 
 - Python 3.10+
-- CUDA-capable GPU (4 GB VRAM demonstrated with TinyLlama; 8 GB+ recommended)
+- CUDA-capable GPU (4 GB VRAM demonstrated with Qwen2.5-Coder 1.5B; 8 GB+ recommended)
 - PyTorch with CUDA support
 
 ### Installation
@@ -186,6 +195,20 @@ the pinned public dataset revision and normalized to `CREATE TABLE` schemas:
 python data/prepare_multi_dataset.py
 ```
 
+WikiSQL is downloaded from the pinned 26 MB GitHub release, rendered into
+`CREATE TABLE` + `INSERT` contexts, and checked by executing every gold query
+against an in-memory SQLite copy of its table:
+
+```bash
+python data/prepare_wikisql.py
+```
+
+The script writes `wikisql_train.json`, `wikisql_validation.json`,
+`wikisql_test.json`, and `wikisql_info.json` to `data/processed/`. Training rows
+omit `INSERT` statements (only the schema is prompted); dev/test snapshots keep
+them so gold queries remain executable. Use `--no-validate` for a faster run and
+`--max-eval-rows` to change the dev/test slice size.
+
 ### Validate Setup
 
 ```bash
@@ -197,13 +220,23 @@ python scripts/validate_setup.py
 Edit `configs/training_config.yaml`:
 
 ```yaml
-model_name: TinyLlama/TinyLlama-1.1B-Chat-v1.0
-output_dir: models/tinyllama-multidataset-sql
+model_name: Qwen/Qwen2.5-Coder-1.5B-Instruct
+output_dir: models/qwen2.5-coder-1.5b-wikisql-sql
 
 dataset:
   name: gretelai/synthetic_text_to_sql
   domains: [finance]
   validation_size: 0.1
+
+training_datasets:
+  spider:
+    include: true
+    max_train_samples: 600
+    finance_repeat: 3
+  wikisql:
+    include: true
+    max_train_samples: 8000
+    max_validation_samples: 1000
 
 batch_size: 1
 gradient_accumulation_steps: 4
@@ -212,7 +245,7 @@ learning_rate: 0.0002
 max_seq_length: 512
 ```
 
-Prepare both sources and train the combined model:
+Prepare all sources and train the combined model:
 
 ```bash
 python -m src.training.train
@@ -221,7 +254,8 @@ python -m src.training.train
 Training features:
 
 - 4-bit NF4 quantization (reduces VRAM ~4x)
-- LoRA adapters (rank 16, `q_proj`/`v_proj`)
+- LoRA adapters (rank 16, `all-linear` targets so Qwen, Phi, and Llama-family projection names all resolve)
+- Chat prompts rendered with the tokenizer's chat template (ChatML for Qwen)
 - Gradient checkpointing
 - Paged AdamW 8-bit optimizer
 - Grouped train/validation split so identical questions never straddle the boundary
@@ -229,7 +263,53 @@ Training features:
 
 Gretel's official test split and Spider's official dev split are never used for
 training. The new adapter is saved separately from the previous TinyLlama
-adapter so the prior model remains available for comparison.
+adapters so prior models remain available for comparison.
+
+### Progress bars
+
+Training reports progress in three places, all using `tqdm` (with a no-op
+fallback if it is missing):
+
+- `Formatting SFT examples` — one row per training example while prompts are
+  tokenized and pruned to `max_seq_length`
+- `Training` — one tick per optimizer step, with `loss`, `lr`, and `epoch` in
+  the postfix; validation prints `eval_loss` at the end of each epoch
+- `Evaluating <model>` — one sample per generated/evaluated test row
+
+Hugging Face's own trainer bar is disabled (`disable_tqdm=True`) so only one
+bar is active. Use `--max-steps N` for a short VRAM smoke run:
+
+```bash
+python -m src.training.train --max-steps 20 --limit-train 200 --limit-validation 50 \
+  --output-dir models/qwen-smoke
+```
+
+Without `--limit-train`, a smoke test still tokenizes the full 11,435-row
+training set before the first optimizer step, so the GPU appears idle for
+several minutes even though the model is already loaded. Limit the rows for a
+true quick check.
+
+### Live progress dashboard
+
+`scripts\train_qwen_wikisql.cmd` starts the Qwen2.5-Coder + WikiSQL run and
+writes a combined log to `logs\train_qwen_wikisql.log`. In a second terminal,
+open the dashboard:
+
+```powershell
+start "" scripts\watch_training.cmd
+```
+
+It tails the log and redraws one screen with the current phase, step
+count/percentage, elapsed time and ETA, loss, learning rate, epoch, and the
+latest validation losses. `python scripts/watch_training.py --once` prints a
+single frame.
+
+MLflow tracking uses the local file store in `mlruns/`; view it with:
+
+```powershell
+.venv\Scripts\mlflow.exe ui --port 5000 --backend-store-uri file:///D:/PRJKT/py/Finance-Text-to-SQL/mlruns
+```
+
 
 ## Evaluation
 
@@ -262,26 +342,38 @@ Some reference queries in the source dataset use SQLite-incompatible features
 or write statements. Those are reported as `gold_execution_errors` and excluded
 from the execution-accuracy denominator; they are not counted as model failures.
 
-### Latest Base vs Fine-tuned Results
+### Latest Model Comparison
 
-Measured with greedy decoding on all 72 held-out Gretel finance examples using
-the same base model and generation settings. The reference SQL executes for 48
-examples; the other 24 are excluded from execution-accuracy denominators.
+All rows below were re-benchmarked on the same 72 held-out Gretel finance
+examples (48 with executable gold SQL) with greedy decoding and the current
+ChatML prompt, so they are directly comparable. Full artifacts:
+[`reports/model_comparison/`](reports/model_comparison/).
 
-| Metric | Base TinyLlama | Fine-tuned adapter |
-|---|---:|---:|
-| Exact match | 0.0% | 16.7% (12 / 72) |
-| Valid SQL rate | 45.8% (33 / 72) | 65.3% (47 / 72) |
-| Execution accuracy | 27.1% (13 / 48) | 58.3% (28 / 48) |
-| Test loss | 0.8383 | 0.7739 |
-| Mean generation latency | 7,249.5 ms | 2,106.4 ms |
-| P50 / P95 / P99 latency | 7,449.5 / 10,360.7 / 10,686.6 ms | 1,851.2 / 4,046.1 / 5,359.2 ms |
+| Model | Exact match | Valid SQL | Execution | Test loss | P50 latency |
+|---|---:|---:|---:|---:|---:|
+| TinyLlama 1.1B base | 1.4% | 79.2% | 43.8% | 0.724 | 21,847 ms |
+| TinyLlama + Gretel finance | 18.1% | 73.6% | 56.2% | 0.482 | 9,165 ms |
+| TinyLlama + multi-dataset | 18.1% | 65.3% | 54.2% | 0.487 | 3,192 ms |
+| TinyLlama + multi-dataset (candidate) | 15.3% | 66.7% | **58.3%** | 0.449 | 3,377 ms |
+| TinyLlama + multi-dataset + Spider (ckpt359) | 16.7% | 63.9% | 54.2% | 0.460 | 3,357 ms |
+| phi3-sql (TinyLlama adapter) | 4.2% | 31.9% | 22.9% | 0.935 | 2,743 ms |
+| Qwen2.5-Coder 1.5B base | 12.5% | 62.5% | 52.1% | 0.476 | 3,032 ms |
+| **Qwen2.5-Coder + WikiSQL/Spider/Finance** | **22.2%** | **68.1%** | 56.2% | **0.235** | 5,433 ms |
 
-The fine-tuned model improved these metrics on this small synthetic finance
-test set; this does not establish real-world accuracy. The dashboard's
-`/evaluation.json` is a separate legacy single-model summary. See
-[`reports/evaluation/`](reports/evaluation/) for the aggregate report and
-per-example predictions.
+The Qwen adapter posts the best exact match (22.2%) and held-out loss (0.235),
+and it adds +4.2 execution points over its base. Its 68.1% valid-SQL rate is
+below the TinyLlama finance adapter (73.6%) and the TinyLlama base (79.2%), and
+its P50 latency is the highest of the fine-tuned models (5,433 ms). Execution
+accuracy is one example behind the best TinyLlama run on this 48-example
+denominator, so that difference is not significant. The test set is small and
+synthetic; these numbers do not establish real-world accuracy.
+
+The dashboard's `/evaluation.json` is a separate single-model summary generated
+by `src.eval.eval`; see [`reports/evaluation-qwen/`](reports/evaluation-qwen/)
+for the base-versus-Qwen-adapter report and per-example predictions. It reports
+56.25% execution and 25.0% exact match (18/72) for the Qwen adapter; the
+3-point exact-match gap comes from its looser `normalize_sql` comparison, so use
+the table above for cross-model comparisons.
 
 Run the base-versus-adapter evaluation with:
 
@@ -307,8 +399,8 @@ from src.inference.gen_sql import generate_sql
 from src.utils.model_loader import load_model
 from peft import PeftModel
 
-model, tokenizer = load_model("TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-model = PeftModel.from_pretrained(model, "models/tinyllama-multidataset-sql")
+model, tokenizer = load_model("Qwen/Qwen2.5-Coder-1.5B-Instruct")
+model = PeftModel.from_pretrained(model, "models/qwen2.5-coder-1.5b-wikisql-sql")
 
 sql = generate_sql(
     model,
@@ -343,6 +435,25 @@ schema-safe fallback, keeps the last eight questions in browser storage, and
 exports the current query as a `.sql` file. It also shows model runtime details
 from `/model`, the live evaluation report, and a per-request `Latency X.XXs`
 metric.
+
+### Vercel dashboard
+
+`api/static/` is the linked Vercel project (a static deployment of the same
+dashboard). It bundles no inference engine, so it connects to a FastAPI server
+that loads the newest `Qwen2.5-Coder-1.5B` adapter. Point the hosted page at
+that server in either of two ways:
+
+- open it with `?api=https://your-api.example.com` (stored in `localStorage`
+  for later visits), or
+- set `<meta name="finance-sql-api" content="https://your-api.example.com">`
+  in `api/static/index.html` before deploying.
+
+With neither value set, a hosted page falls back to
+`http://127.0.0.1:8000`, so it works when the Qwen API runs on the visitor's
+machine. The header model pill and runtime card read `/health` and `/model`,
+so they report the adapter actually being served instead of a hard-coded name.
+Keep the API reachable over HTTPS when the dashboard is served over HTTPS;
+`CORSMiddleware` already allows cross-origin requests.
 
 The API accepts an optional `schema`. If omitted, it uses the personal-finance
 demo schema from `configs/training_config.yaml`.
@@ -402,6 +513,10 @@ carries its own schema in the prompt.
 | Set operations | 4 |
 | CTEs | 3 |
 
+WikiSQL contributes only single-table `SELECT ... WHERE` shapes (plain,
+aggregation, and comparisons), so it improves column/table grounding but does
+not add joins, subqueries, or CTEs. Spider and Gretel still carry those.
+
 ## Technical Details
 
 ### QLoRA Configuration
@@ -410,7 +525,7 @@ carries its own schema in the prompt.
 LoraConfig(
     r=16,
     lora_alpha=32,
-    target_modules=["q_proj", "v_proj"],
+    target_modules="all-linear",  # resolves per architecture
     lora_dropout=0.05,
     bias="none",
     task_type="CAUSAL_LM",
@@ -431,8 +546,10 @@ BitsAndBytesConfig(
 
 | Configuration | VRAM | Notes |
 |---|---|---|
-| TinyLlama 1.1B, RTX 3050 Laptop GPU | 4 GB | Training and inference verified locally |
-| Phi-3 Mini 3.8B | ~10 GB | May work with the same code after changing `model_name` |
+| Qwen2.5-Coder 1.5B, RTX 3050 Laptop GPU | 4 GB | Current configuration; 4-bit QLoRA + SDPA |
+| TinyLlama 1.1B, RTX 3050 Laptop GPU | 4 GB | Previous baseline, kept for comparison |
+| Qwen2.5-Coder 3B / Phi-4-mini 3.8B | ~6–8 GB | Training at 512 tokens is tight on 4 GB; inference only |
+| Qwen2.5-Coder 7B / Qwen3 8B | ~12 GB | Recommended next step for accuracy |
 
 ## Known Issues
 
@@ -440,7 +557,12 @@ BitsAndBytesConfig(
 - 4-bit quantization requires CUDA compute capability 7.0+
 - Some source-dataset reference queries are not executable in SQLite; the
   evaluator reports these separately as `gold_execution_errors`
-- The dataset is synthetic; it does not establish real-world accuracy
+- The Gretel dataset is synthetic; it does not establish real-world accuracy
+- WikiSQL is single-table and has no joins, ordering, or nesting; treat it as
+  schema grounding rather than a replacement for Spider
+- WikiSQL's Hugging Face copy requires a dataset loading script, which
+  `datasets>=4` does not run; `data/prepare_wikisql.py` uses the pinned GitHub
+  release instead
 
 ## Redis Cache and Cache Benchmark
 
@@ -485,5 +607,7 @@ evaluation details, and test instructions.
 
 ## License
 
-Project code: MIT. Dataset: see the
-[`gretelai/synthetic_text_to_sql` dataset card](https://huggingface.co/datasets/gretelai/synthetic_text_to_sql).
+Project code: MIT. Datasets: see the
+[`gretelai/synthetic_text_to_sql` dataset card](https://huggingface.co/datasets/gretelai/synthetic_text_to_sql),
+the [Spider](https://yale-lily.github.io/spider) license, and the
+[WikiSQL](https://github.com/salesforce/WikiSQL) repository.

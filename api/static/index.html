@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0f0f0e">
-  <meta name="description" content="Ask finance questions in plain English and get schema-validated SQL from a fine-tuned Gretel model.">
+  <meta name="description" content="Ask finance questions in plain English and get schema-validated SQL from a fine-tuned Qwen model.">
+  <meta name="finance-sql-api" content="">
   <title>Ledger · Finance SQL Studio</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
@@ -305,8 +306,8 @@
         <h1>Ask your finances.</h1>
         <p class="intro">Turn a question into a query. <span>Your data stays yours.</span></p>
         <div class="hero-meta">
-          <span class="meta-pill"><i></i>TinyLlama 1.1B · QLoRA</span>
-          <span class="meta-pill">Gretel financial SQL</span>
+          <span class="meta-pill"><i></i><span id="modelPill">Qwen2.5-Coder 1.5B · QLoRA</span></span>
+          <span class="meta-pill">Gretel · Spider · WikiSQL</span>
           <span class="meta-pill">SQLite · schema-guarded</span>
         </div>
 
@@ -393,7 +394,7 @@
   <dialog id="apiDialog" aria-labelledby="apiDialogTitle">
     <form class="dialog-body" id="apiForm">
       <h2 id="apiDialogTitle">Connect your inference API</h2>
-      <p>The dashboard is served by the FastAPI app. Enter the public URL of a running Finance Text-to-SQL server to generate SQL from a hosted deployment.</p>
+      <p>The dashboard is served by the FastAPI app. Enter the public URL of a running Finance Text-to-SQL server to generate SQL from a hosted deployment. A hosted page falls back to <span class="mono">http://127.0.0.1:8000</span> when no URL is configured, so a local Qwen API works without extra setup.</p>
       <label for="apiUrl">FastAPI base URL</label>
       <input class="api-input" id="apiUrl" type="text" inputmode="url" placeholder="http://127.0.0.1:8000" autocomplete="url" spellcheck="false">
       <div class="dialog-hint">Requests go directly from your browser to this URL. The API must allow cross-origin requests.</div>
@@ -425,7 +426,16 @@ CREATE TABLE transactions (txn_id INT PRIMARY KEY, account_id INT, txn_type TEXT
     const historyList = $('historyList');
 
     const servedLocally = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
-    let apiBase = readStoredApi() || (servedLocally ? window.location.origin : '');
+    const LOCAL_API_BASE = 'http://127.0.0.1:8000';
+    const configuredApi = normalizeBase(document.querySelector('meta[name="finance-sql-api"]')?.content || '');
+    const queryApi = (() => {
+      try { return normalizeBase(new URLSearchParams(window.location.search).get('api') || ''); } catch (_) { return ''; }
+    })();
+    const fallbackApiBase = configuredApi || (servedLocally ? window.location.origin : LOCAL_API_BASE);
+    let apiBase = queryApi || readStoredApi() || fallbackApiBase;
+    if (queryApi) {
+      try { localStorage.setItem('financeSqlApi', queryApi); } catch (_) {}
+    }
     let history = readHistory();
 
     function readStoredApi() {
@@ -863,6 +873,11 @@ CREATE TABLE transactions (txn_id INT PRIMARY KEY, account_id INT, txn_type TEXT
       return base.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
     }
 
+    function shortModel(name) {
+      if (!name) return '';
+      return name.split('/').pop().replace(/-chat.*$/i, '').replace(/-instruct.*$/i, '');
+    }
+
     async function loadRuntime() {
       if (!apiBase) {
         setModelState(null, 'API URL needed');
@@ -877,6 +892,10 @@ CREATE TABLE transactions (txn_id INT PRIMARY KEY, account_id INT, txn_type TEXT
         const info = modelResponse.ok ? await modelResponse.json() : null;
         if (!health && !info) throw new Error('Runtime unavailable');
         if (info) {
+          if (info.base_model) {
+            $('modelPill').textContent = `${shortModel(info.base_model)} · QLoRA`;
+            $('modelPill').title = info.adapter || '';
+          }
           $('modelBase').textContent = prettyModel(info.base_model) || '—';
           $('modelAdapter').textContent = info.adapter || '—';
           $('modelDataset').textContent = info.dataset || '—';
@@ -1093,8 +1112,9 @@ CREATE TABLE transactions (txn_id INT PRIMARY KEY, account_id INT, txn_type TEXT
     });
 
     $('clearApi').addEventListener('click', () => {
-      apiBase = '';
+      apiBase = fallbackApiBase;
       try { localStorage.removeItem('financeSqlApi'); } catch (_) {}
+      $('apiUrl').value = apiBase;
       apiDialog.close();
       refreshAll();
     });

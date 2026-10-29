@@ -31,11 +31,18 @@ logs/
 *.log
 log.md
 
+# Intermediate per-checkpoint validation reports
+reports/candidate-*/
+
 # IDE
 .vscode/
 .idea/
+.qoder/
 *.swp
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Personal
+RESUME.md

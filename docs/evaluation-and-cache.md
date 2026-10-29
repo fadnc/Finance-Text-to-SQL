@@ -14,6 +14,30 @@ Use `--limit 5` for a quick smoke run, `--max-new-tokens 128` to cap generation,
 
 Outputs are `summary.json`, `report.md`, and `predictions.jsonl`. Exact match ignores whitespace/comments and folds keyword case while retaining literal, identifier, operator, and token order. It does not prove SQL semantic equivalence. Rows are compared in order when either query uses a top-level `ORDER BY`; otherwise row multisets are compared, preserving duplicates. Numeric representations are normalized, NULLs compare to NULLs, and blobs remain distinct from text.
 
+### Latest held-out results
+
+The newest adapter is `Qwen/Qwen2.5-Coder-1.5B-Instruct` with a rank-16 QLoRA
+adapter trained on 8,000 WikiSQL rows, 600 Spider rows, and the 945 finance
+rows repeated three times (11,435 examples, 1 epoch, 2,781 steps, validation
+loss 0.1321). All rows below were scored on the same 72 held-out Gretel finance
+examples (48 with executable reference SQL):
+
+| Model | Exact match | Valid SQL | Execution | Test loss | P50 latency |
+|---|---:|---:|---:|---:|---:|
+| Qwen2.5-Coder 1.5B base | 12.5% | 62.5% | 52.1% | 0.476 | 3,032 ms |
+| **Qwen2.5-Coder + WikiSQL/Spider/Finance** | **22.2%** | 68.1% | 56.2% | **0.235** | 5,433 ms |
+| TinyLlama + Gretel finance | 18.1% | 73.6% | 56.2% | 0.482 | 9,165 ms |
+| TinyLlama + multi-dataset (candidate) | 15.3% | 66.7% | 58.3% | 0.449 | 3,377 ms |
+
+The Qwen adapter has the best exact match and loss but not the best valid-SQL
+rate or execution accuracy. Execution is within one example of the best
+TinyLlama adapter on this denominator. Full artifacts, including the remaining
+TinyLlama runs, are in `reports/model_comparison/`; the base-versus-adapter
+report for Qwen is in `reports/evaluation-qwen/`. The dashboard's bundled
+`api/static/evaluation.json` is produced by the separate `src.eval.eval` path,
+whose looser exact-match normalization reports 25.0% (18/72); use the table
+above for cross-model comparisons.
+
 ## Redis
 
 Install the project dependencies, including the optional cache client:

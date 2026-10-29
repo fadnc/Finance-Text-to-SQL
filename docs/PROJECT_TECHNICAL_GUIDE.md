@@ -7,18 +7,28 @@
 > against the sample's own `sql_context` in an in-memory SQLite database. Sections
 > 3, 4, and 8 below still describe the pre-migration template pipeline; use the
 > README and the migration notes in those sections for the current behavior.
+>
+> **Migration update (2026-10-28):** The configured base model changed from
+> TinyLlama-1.1B to `Qwen/Qwen2.5-Coder-1.5B-Instruct`, prompts are rendered with
+> the tokenizer's chat template instead of hardcoded `<|user|>` tags, LoRA targets
+> changed to `all-linear`, and WikiSQL was added as a third training source
+> (8,000 sampled rows per epoch). The Qwen adapter finished training on
+> 2026-10-29 (2,781 steps, validation loss 0.1321) and scores 22.2% exact,
+> 68.1% valid SQL, and 56.2% execution on the 72-row finance holdout; the full
+> cross-model table is in `reports/model_comparison/`. See
+> `model_upgrade_log.md` Appendix C.
 
 **Repository investigation, interview reference, and operational notes**  
-Repository state inspected: 20 October 2026; dataset migration applied 27 October 2026.  
+Repository state inspected: 20 October 2026; dataset migration applied 27 October 2026; model and WikiSQL migration applied 28 October 2026; Qwen training, evaluation, and serving completed 29 October 2026.  
 Evidence labels: **Implemented** means directly present in the checked-in code or current repository artifacts; **Documented** means stated in repository documentation; **Inference** means a conclusion from implementation details; **Proposed** means future work.
 
 ## 1. Executive summary
 
-**Implemented:** This repository is a prototype pipeline that fine-tunes a causal language model to translate questions about a supplied SQL schema into SQL. Training is supervised fine-tuning (SFT) over the finance subset of `gretelai/synthetic_text_to_sql`, with each example carrying its own DDL. [`src/utils/model_loader.py`](../src/utils/model_loader.py) can load the configured TinyLlama model in 4-bit NF4 when CUDA and bitsandbytes appear available. [`src/training/lora_config.py`](../src/training/lora_config.py) attaches LoRA adapters. A FastAPI service generates SQL; a separate evaluator creates an in-memory SQLite database from each test sample's context and compares reference-query results.
+**Implemented:** This repository is a prototype pipeline that fine-tunes a causal language model to translate questions about a supplied SQL schema into SQL. Training is supervised fine-tuning (SFT) over the finance subset of `gretelai/synthetic_text_to_sql`, plus Spider and WikiSQL cross-domain examples, with each example carrying its own DDL. [`src/utils/model_loader.py`](../src/utils/model_loader.py) loads the configured `Qwen/Qwen2.5-Coder-1.5B-Instruct` base in 4-bit NF4 when CUDA and bitsandbytes appear available. [`src/training/lora_config.py`](../src/training/lora_config.py) attaches rank-16 `all-linear` LoRA adapters. A FastAPI service generates SQL; a separate evaluator creates an in-memory SQLite database from each test sample's context and compares reference-query results.
 
 **Intended users (inference):** Developers experimenting with domain adaptation, and consumers asking finance questions in natural language. No user study or product deployment evidence is present.
 
-**System boundary:** The service returns generated SQL and a schema string. The API does not connect to a live finance database or execute the returned SQL. The local evaluator executes SQL against a synthetic SQLite fixture. No authentication, authorization, SQL execution sandbox, hosted deployment configuration, CI workflow, or automated test suite is present in the tracked file inventory.
+**System boundary:** The service returns generated SQL and a schema string. The API does not connect to a live finance database or execute the returned SQL. The local evaluator executes SQL against synthetic SQLite fixtures. No authentication, authorization, CI workflow, or hosted backend deployment is tracked; the linked Vercel project is a static dashboard that connects to a separately hosted FastAPI server. The API validates generated SQL against a schema-only SQLite database and rejects write statements, but that validation is not a write-capable execution sandbox. A 32-test `unittest` suite is tracked under `tests/`.
 
 **Status:** This is best described as an educational/prototyping project. Production readiness, measured model quality, and operational performance are **not verified from the repository**.
 
@@ -27,7 +37,7 @@ Evidence labels: **Implemented** means directly present in the checked-in code o
 | Area | Main files | Responsibility |
 |---|---|---|
 | Configuration | [`configs/training_config.yaml`](../configs/training_config.yaml) | Base model, input/output paths, hyperparameters, schema text |
-| Data preparation | [`data/prepare_dataset.py`](../data/prepare_dataset.py), [`src/data/gretel.py`](../src/data/gretel.py) | Load `gretelai/synthetic_text_to_sql`, filter domains, extract DDL, build train/validation/test splits, write JSON snapshots |
+| Data preparation | [`data/prepare_dataset.py`](../data/prepare_dataset.py), [`data/prepare_multi_dataset.py`](../data/prepare_multi_dataset.py), [`data/prepare_wikisql.py`](../data/prepare_wikisql.py), [`src/data/gretel.py`](../src/data/gretel.py), [`src/data/multi_dataset.py`](../src/data/multi_dataset.py) | Load Gretel, Spider, and WikiSQL; filter domains, render DDL, build train/validation/test splits, write JSON snapshots |
 | SQLite fixture | [`data/setup_test_db.py`](../data/setup_test_db.py) | Optional six-table personal-finance demo database for the API dashboard |
 | Training | [`src/training/train.py`](../src/training/train.py), [`src/training/formatting.py`](../src/training/formatting.py), [`src/training/data_split.py`](../src/training/data_split.py), [`src/training/lora_config.py`](../src/training/lora_config.py) | Split, format, load base model, attach adapter, run TRL SFT |
 | Model loading | [`src/utils/model_loader.py`](../src/utils/model_loader.py) | Tokenizer and causal LM loading with quantized/CUDA/CPU branches |
@@ -38,15 +48,17 @@ Evidence labels: **Implemented** means directly present in the checked-in code o
 | Orchestration | [`scripts/run_pipeline.py`](../scripts/run_pipeline.py), [`scripts/validate_setup.py`](../scripts/validate_setup.py) | Sequential pipeline and setup checks |
 | Packaging | [`requirements.txt`](../requirements.txt), [`docker/Dockerfile`](../docker/Dockerfile), [`docker/docker-compose.yml`](../docker/docker-compose.yml) | Python dependencies and a proposed containerized API |
 
-Tracked files include no CI workflow, migration system, separate production database configuration, or automated tests. `models/` has local adapter artifacts in this checkout, but `.gitignore` excludes model outputs; the tracked repository does not include the trained adapter weights. Generated data artifacts are also ignored. Local presence does not establish reproducible availability to a fresh clone.
+Tracked files include no CI workflow, migration system, or separate production database configuration. The tracked `tests/` suite covers SQL guardrails, API generation, evaluation metrics, and Redis cache behavior (32 tests passing). `models/` has local adapter artifacts in this checkout, but `.gitignore` excludes model outputs; the tracked repository does not include the trained adapter weights. Generated data artifacts are also ignored. Local presence does not establish reproducible availability to a fresh clone; the held-out evaluation artifacts under `reports/` are tracked.
 
 ## 3. Problem and data contract
 
-The model input is a natural-language question accompanied by a schema description. After the 2026-10-27 migration, the training record is derived directly from a Gretel row: `question` is `sql_prompt`, `schema` is the DDL extracted from `sql_context`, and `output` is `sql`. The formatter builds a `<|user|> ... <|assistant|>` sequence from `Question: ...` and `Schema: ...`. The full `sql_context` (including seed rows) is retained for evaluation but is not shown to the model. The target remains SQL text; there is no structured SQL AST, tool call, or execution result in the model output contract.
+The model input is a natural-language question accompanied by a schema description. After the 2026-10-27 migration, the training record is derived directly from a Gretel row: `question` is `sql_prompt`, `schema` is the DDL extracted from `sql_context`, and `output` is `sql`. After the 2026-10-28 migration, the formatter renders that record through the tokenizer's chat template (ChatML for Qwen) using `Question: ...` and `Schema: ...`; the legacy `<|user|> ... <|assistant|>` layout remains only as a fallback for tokenizers without a template. The full `sql_context` (including seed rows) is retained for evaluation but is not shown to the model. The target remains SQL text; there is no structured SQL AST, tool call, or execution result in the model output contract.
 
-The configured base is `TinyLlama/TinyLlama-1.1B-Chat-v1.0`; the output directory is named `models/phi3-sql`, which is a potentially confusing historical label and does not match the configured base. The configured schema covers `users`, `accounts`, `expenses`, `income`, `budgets`, and `transactions`, with user/account foreign-key relationships described in the test DB setup.
+The configured base is `Qwen/Qwen2.5-Coder-1.5B-Instruct` and the adapter output directory is `models/qwen2.5-coder-1.5b-wikisql-sql`. The historical `models/phi3-sql` directory is a mislabeled TinyLlama adapter and is not used by the current configuration. The configured demo schema covers `users`, `accounts`, `expenses`, `income`, `budgets`, and `transactions`, with user/account foreign-key relationships described in the test DB setup.
 
 **Migration update:** [`src/data/gretel.py`](../src/data/gretel.py) loads `gretelai/synthetic_text_to_sql` with `datasets.load_dataset`, filters to the configured domains (`finance` by default), and maps each row into the project format. The source dataset has 100,000 train and 5,851 test rows across many domains; the finance filter yields 1,051 train and 72 test rows before the validation holdout. `extract_schema` executes each context in an in-memory SQLite database and reads canonical `CREATE TABLE` DDL from `sqlite_master`, with a regex fallback. The official test split is held out; a grouped 10% validation split is carved from the training rows.
+
+**WikiSQL update:** [`data/prepare_wikisql.py`](../data/prepare_wikisql.py) downloads the pinned 26 MB GitHub release rather than the HF copy, because `datasets 4.6.1` no longer runs dataset loading scripts. It joins `train/dev/test.jsonl` to the matching `*.tables.jsonl`, renders `sql.conds` triples into quoted single-table `SELECT` statements, and executes every gold query against an in-memory SQLite copy of its table before writing `wikisql_{train,validation,test}.json`. Training snapshots omit `INSERT` context; the 2,000-row dev/test slices retain it. [`src/data/multi_dataset.py`](../src/data/multi_dataset.py) mixes 8,000 WikiSQL rows, 600 Spider rows, and the 945 finance rows repeated three times.
 
 **Pre-migration behavior (superseded):** `data/gen_dataset.py` created examples from hand-written templates and random choices of names, categories, thresholds, and limits. It covered aggregates, grouping, filters, joins, subqueries, ordering, budget comparisons, and CASE expressions. That generator is now a deprecated shim that routes to `data/prepare_dataset.py`.
 
@@ -86,7 +98,7 @@ held-out samples + sql_context ─► batch generation ─► predictions.json
 2. [`src/data/gretel.py`](../src/data/gretel.py) loads the Hugging Face dataset, filters to the configured domains, extracts DDL, and returns train/validation/test splits. The official test split is untouched; `grouped_split_indices` carves a validation set from the training rows and keeps identical questions in the same side of the boundary. The split groups by exact prompt, not by semantic paraphrase.
 3. The formatter adds the instruction, per-sample schema, and expected SQL into the sequence consumed by `SFTTrainer`.
 4. `load_model` loads the tokenizer and base model. With CUDA and the bitsandbytes import/attribute check, the model uses 4-bit NF4 quantization and automatic device mapping. Otherwise it chooses CUDA FP16 or CPU FP32.
-5. Training enables gradient checkpointing, disables the model KV cache during training, attaches rank-16 LoRA modules to `q_proj` and `v_proj`, and runs TRL `SFTTrainer` with configured epochs, batch size, gradient accumulation, learning rate, sequence length, an 8-bit paged AdamW optimizer, cosine schedule, and epoch evaluation/checkpointing.
+5. Training enables gradient checkpointing, disables the model KV cache during training, attaches rank-16 `all-linear` LoRA modules (architecture-agnostic; includes Qwen's attention and MLP projections), and runs TRL `SFTTrainer` with configured epochs, batch size, gradient accumulation, learning rate, sequence length, an 8-bit paged AdamW optimizer, cosine schedule, and epoch evaluation/checkpointing.
 6. `trainer.save_model` writes the final adapter to the configured output directory. The validation split is used as the trainer evaluation set; the official test split is used only by the separate prediction/evaluation run.
 
 ### Inference paths
@@ -106,12 +118,12 @@ Error classification attempts prediction and reference execution and distinguish
 | Choice | Evidence and rationale | Trade-off / interview answer |
 |---|---|---|
 | SFT on a causal LM | `SFTTrainer` learns next-token prediction over prompt plus SQL target. | Straightforward for text generation; model can emit malformed, unsafe, or incorrect SQL. |
-| LoRA adapters | Rank 16, alpha 32, dropout 0.05; target query/value projection modules. | Reduces trainable parameter count and adapter storage versus full fine-tuning. Targets only these modules and rank were chosen in code; no repository ablation establishes they are optimal. |
+| LoRA adapters | Rank 16, alpha 32, dropout 0.05; `all-linear` targets so projection names resolve per architecture. | Reduces trainable parameter count and adapter storage versus full fine-tuning. Rank and target policy were chosen in code; no repository ablation establishes they are optimal. |
 | 4-bit NF4 quantization | `BitsAndBytesConfig` branch, with bfloat16 if supported else float16 compute. | Reduces base-weight memory, at cost of compatibility constraints and possible numerical effects. Fallback to full precision may exceed available hardware. |
 | Gradient checkpointing | Enabled in training and SFT config. | Saves activation memory by recomputing activations during backward pass, increasing computation. |
 | Paged 8-bit AdamW | Configured as `paged_adamw_8bit`. | Optimizer state memory is reduced; requires compatible bitsandbytes setup. |
 | Per-example SQLite execution | Each Gretel `sql_context` is executed in an in-memory database, then predicted and reference queries run read-only. | Tests many schemas and seed datasets rather than one fixture; context scripts that SQLite cannot execute are reported as gold errors. Set comparison still ignores order/duplicates. |
-| FastAPI | Typed Pydantic request/response and simple HTTP interface. | Simple serving surface. No authentication, throttling, request validation beyond string type, SQL policy enforcement, or concurrency/load design is present. |
+| FastAPI | Typed Pydantic request/response, schema validation through `src/inference/sql_guard.py`, a schema-aware demo fallback, and an optional Redis response cache. | Generated SQL is checked against a temporary schema-only SQLite database, and write statements are rejected. No authentication, throttling, or concurrency/load design is present. |
 
 Alternatives such as full fine-tuning, larger/richer datasets, constrained decoding, schema linking, SQL parser validation, database-aware prompting, or execution-guided repair are **proposed directions**, not implemented features.
 
@@ -119,11 +131,11 @@ Alternatives such as full fine-tuning, larger/richer datasets, constrained decod
 
 Dependencies in `requirements.txt` are unpinned names, so a fresh install is not version-locked. The model and dataset require external model hub access on first use; actual access/cache behavior depends on environment. No `.env.example` or required environment variables were found in the tracked file list. `.env` is ignored; secret contents were not inspected or included.
 
-Documented setup begins with Python 3.10+, a virtual environment, and `pip install -r requirements.txt`; dataset preparation is `python data/prepare_dataset.py`, and training is launched with `python -m src.training.train`. The optional demo database is created separately with `python data/setup_test_db.py`. The repository also has `scripts/validate_setup.py` and `scripts/run_pipeline.py`; the latter runs data preparation, training, prediction, and evaluation sequentially and exits on the first failure.
+Documented setup begins with Python 3.10+, a virtual environment, and `pip install -r requirements.txt`; dataset preparation is `python data/prepare_dataset.py`, followed by `python data/prepare_multi_dataset.py` and `python data/prepare_wikisql.py`, and training is launched with `python -m src.training.train`. The optional demo database is created separately with `python data/setup_test_db.py`. The repository also has `scripts/validate_setup.py` and `scripts/run_pipeline.py`; the latter runs data preparation, training, prediction, and evaluation sequentially and exits on the first failure.
 
-Configuration paths are relative to the current working directory, so invoke commands from repository root. The Dockerfile uses `WORKDIR /app`, copies requirements and then the repository, and starts Uvicorn on port 8000. Compose declares `build: .` in `docker/docker-compose.yml`; Compose resolves this context relative to the Compose file, so its context is `docker/`. The Dockerfile is in that directory, but `requirements.txt` is in the repository root and is unavailable to `COPY requirements.txt .` from that context. A likely correction is `build: { context: .., dockerfile: docker/Dockerfile }` (not applied). Also, the image installs unpinned dependencies and copies the local repository, including whatever files are in the build context after `.dockerignore` filtering. These are repository-level configuration observations, not runtime test results.
+Configuration paths are relative to the current working directory, so invoke commands from repository root. The Dockerfile uses `WORKDIR /app`, copies requirements and then the repository, and starts Uvicorn on port 8000. Compose declares `build: { context: .., dockerfile: docker/Dockerfile }`, so the root `requirements.txt` is available during the build. The image still installs unpinned dependencies on a CPU-only `python:3.10` base and copies the local repository subject to `.dockerignore` filtering. These are repository-level configuration observations; the image has not been rebuilt in this checkout.
 
-The README's stated VRAM and training-time figures are documented claims only; there are no reproducible benchmark artifacts or environment details proving those figures in this checkout. Training hardware, observed runtime, and achieved metrics are **not verified from the repository**. The current code uses `report_to="none"`; although it calls `mlflow.set_experiment`, no explicit MLflow run or metric logging is visible in the training script. Do not describe this as verified MLflow metric tracking without inspecting a successful run.
+The README's VRAM and training-time figures come from the local run log and cannot be reproduced from a fresh clone without the same hardware. The training script sets `report_to="none"` for the Hugging Face Trainer but opens an explicit MLflow run, logs parameters and metrics, and ends the run on completion. The held-out comparison is reproducible from `scripts/evaluate_models.py` when the adapters are present locally; adapter weights are git-ignored, so a fresh clone must retrain or obtain them.
 
 ## 7. Security, reliability, and correctness concerns
 
@@ -136,7 +148,7 @@ The README's stated VRAM and training-time figures are documented claims only; t
 7. **Synthetic data leakage and diversity.** The split groups identical `input` strings, but many examples share fixed templates or are duplicated by random choice. This can make a row-level held-out score optimistic and does not show generalization to unseen phrasing/schema.
 8. **Non-deterministic fixture/data generation.** Dataset generation and SQLite sample data use random values without seeding; SQLite rows use the current date. Training has a seed, but reproducibility begins only after generated inputs are fixed.
 9. **Schema/config duplication.** `schema` and `schema_simple` are both maintained in YAML, and the test DB is maintained separately in Python. They can drift.
-10. **Deployment config mismatch.** Compose does not identify the Dockerfile in its nested directory. The Dockerfile's default installation has no pinned or GPU-specific dependency selection.
+10. **Deployment configuration.** Compose points at the root build context and nested Dockerfile correctly, but the image uses a CPU-only base with unpinned dependencies and no GPU-specific selection. The Vercel project is static only and needs an externally hosted API for inference.
 
 ## 8. Reproduction and troubleshooting
 
@@ -171,13 +183,13 @@ Model hub/network access, sufficient disk, compatible CUDA/PyTorch/bitsandbytes 
 
 **How do you measure correctness?** The evaluator has normalized string exact match and SQLite result-set equality. They answer different questions: textual similarity versus equal outputs on one database. The latter ignores order/duplicate count and is not a proof of semantic equivalence.
 
-**How is the system deployed?** A FastAPI application and Docker artifacts exist. The API loads model and adapter on startup and offers health/schema/generation routes. The Compose file's build path needs correction, and the code lacks production controls such as authentication, safe SQL execution, CPU-compatible device handling, monitoring, and resource limits.
+**How is the system deployed?** A FastAPI application and Docker artifacts exist. The API loads the Qwen base model and adapter on startup and offers health/schema/generation routes, schema validation, a demo fallback, and an optional Redis cache. The Compose build context is configured correctly, but the image is CPU-only and the code lacks production controls such as authentication, a live SQL execution sandbox, monitoring, and resource limits. The Vercel project serves the static dashboard and must be pointed at a hosted API through `?api=<url>` or the `finance-sql-api` meta tag.
 
 **What would you improve first?** Make data generation and fixtures deterministic; audit every question/SQL pair; strengthen evaluation with multiple fixtures, ordered/multiset-aware comparisons where appropriate, and parse/safety checks; unify prompt construction; add device-aware serving; constrain generated SQL to authorized read-only operations; pin dependencies; fix and verify container build; then report held-out results with environment and sample counts.
 
 ## 10. Evidence gaps and verification status
 
-- Test suite/results: no tracked automated tests found; no tests were run for this investigation.
+- Test suite/results: `python -m unittest discover -s tests -v` runs 32 tests covering SQL guardrails, API generation, evaluation metrics, Redis cache behavior, and training formatting; all pass in this checkout.
 - Accuracy, latency, throughput, cost, memory consumption, scaling, and production uptime: **Not verified from the repository.**
 - Dataset source: `gretelai/synthetic_text_to_sql` loaded from the Hugging Face Hub; the dataset is synthetic, not real customer data.
 - Deployment environment and live database integration: **Not verified from the repository.**
