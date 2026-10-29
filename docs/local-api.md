@@ -109,7 +109,7 @@ include `valid`, `source`, `latency_ms`, `cache_hit`, and `model_version`.
 The Vercel project serves only the static dashboard, so the browser needs the
 local API URL:
 
-- open `https://YOUR-PROJECT.vercel.app/?api=http://127.0.0.1:8000` once; the
+- open `https://static-ten-pi.vercel.app/?api=http://127.0.0.1:8000` once; the
   value is stored in `localStorage`, or
 - set `<meta name="finance-sql-api" content="http://127.0.0.1:8000">` in
   `api/static/index.html` before deploying.

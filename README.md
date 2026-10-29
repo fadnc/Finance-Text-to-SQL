@@ -452,8 +452,8 @@ scripts\start_api.cmd
 .venv\Scripts\python.exe -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Then open the deployed dashboard with
-`https://YOUR-PROJECT.vercel.app/?api=http://127.0.0.1:8000`. The URL is stored
+Then open the deployed dashboard at
+`https://static-ten-pi.vercel.app/?api=http://127.0.0.1:8000`. The URL is stored
 in `localStorage` for later visits. Without either value, a hosted page falls
 back to `http://127.0.0.1:8000`, so a local API works without extra setup.
 
