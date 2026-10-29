@@ -92,5 +92,25 @@ class ApiGenerationTests(unittest.TestCase):
             api_main.cache = original_cache
 
 
+class ApiPreflightTests(unittest.TestCase):
+    def test_private_network_preflight_allows_vercel_origin(self) -> None:
+        from fastapi.testclient import TestClient
+
+        client = TestClient(api_main.app)
+        response = client.options(
+            "/generate-sql",
+            headers={
+                "Origin": "https://finance-sql.vercel.app",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+                "Access-Control-Request-Private-Network": "true",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("access-control-allow-origin"), "*")
+        self.assertEqual(response.headers.get("access-control-allow-private-network"), "true")
+
+
 if __name__ == "__main__":
     unittest.main()

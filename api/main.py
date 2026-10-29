@@ -36,6 +36,9 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
+    # Chrome's Local Network Access preflight needs this when an HTTPS page
+    # calls a loopback API such as http://127.0.0.1:8000.
+    allow_private_network=True,
 )
 
 STATIC_DIR = Path(__file__).parent / "static"

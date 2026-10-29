@@ -440,20 +440,27 @@ metric.
 
 `api/static/` is the linked Vercel project (a static deployment of the same
 dashboard). It bundles no inference engine, so it connects to a FastAPI server
-that loads the newest `Qwen2.5-Coder-1.5B` adapter. Point the hosted page at
-that server in either of two ways:
+that loads the newest `Qwen2.5-Coder-1.5B` adapter.
 
-- open it with `?api=https://your-api.example.com` (stored in `localStorage`
-  for later visits), or
-- set `<meta name="finance-sql-api" content="https://your-api.example.com">`
-  in `api/static/index.html` before deploying.
+Start the API on the same machine as the browser:
 
-With neither value set, a hosted page falls back to
-`http://127.0.0.1:8000`, so it works when the Qwen API runs on the visitor's
-machine. The header model pill and runtime card read `/health` and `/model`,
-so they report the adapter actually being served instead of a hard-coded name.
-Keep the API reachable over HTTPS when the dashboard is served over HTTPS;
-`CORSMiddleware` already allows cross-origin requests.
+```powershell
+scripts\start_api.cmd
+# or
+.venv\Scripts\python.exe -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+
+Then open the deployed dashboard with
+`https://YOUR-PROJECT.vercel.app/?api=http://127.0.0.1:8000`. The URL is stored
+in `localStorage` for later visits. Without either value, a hosted page falls
+back to `http://127.0.0.1:8000`, so a local API works without extra setup.
+
+To point the hosted page at a public server instead, use `?api=https://...`
+or set `<meta name="finance-sql-api" content="https://...">` in
+`api/static/index.html`. CORS allows cross-origin requests, including Chrome's
+Local Network Access preflight (`allow_private_network=True`). The header model
+pill and runtime card read `/health` and `/model`, so they report the adapter
+actually being served instead of a hard-coded name.
 
 The API accepts an optional `schema`. If omitted, it uses the personal-finance
 demo schema from `configs/training_config.yaml`.
